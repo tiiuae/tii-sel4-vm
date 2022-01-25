@@ -1,0 +1,64 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ * Copyright 2021 Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+#include <configurations/vm.h>
+
+import <std_connector.camkes>;
+import <global-connectors.camkes>;
+import <seL4VMDTBPassthrough.idl4>;
+import <FileServerInterface.camkes>;
+import <FileServer/FileServer.camkes>;
+/*import <SerialServer/SerialServer.camkes>;
+import <TimeServer/TimeServer.camkes>;*/
+import <vm-connectors.camkes>;
+import <devices.camkes>;
+
+component VM {
+    VM_INIT_DEF()
+
+    emits    QemuReqAck intervm_source;
+    consumes QemuReqAck intervm_sink;
+
+    dataport Buf(4096) ctrl;
+    dataport Buf(4096) memdev;
+}
+
+assembly {
+    composition {
+        /* Boilerplate composition settings */
+        VM_GENERAL_COMPOSITION_DEF()
+
+        /* Other standard VM definitions (vm0, vm1) */
+        VM_COMPOSITION_DEF(0)
+        VM_COMPOSITION_DEF(1)
+
+        connection seL4SharedDataWithCaps vm_ctrl(from vm0.ctrl, to vm1.ctrl);
+        connection seL4SharedDataWithCaps vm_memdev(from vm0.memdev, to vm1.memdev);
+
+        connection seL4GlobalAsynch u2d(from vm1.intervm_source, to vm0.intervm_sink);
+        connection seL4Notification d2u(from vm0.intervm_source, to vm1.intervm_sink);
+
+        /* DTB Passthrough */
+        connection seL4VMDTBPassthrough vm0_dtb(from vm0.dtb_self, to vm0.dtb);
+        connection seL4VMDTBPassthrough vm1_dtb(from vm1.dtb_self, to vm1.dtb);
+    }
+    configuration {
+        VM_GENERAL_CONFIGURATION_DEF()
+        VM_CONFIGURATION_DEF(0)
+        VM_CONFIGURATION_DEF(1)
+
+        vm0.num_extra_frame_caps = 0;
+        vm0.extra_frame_map_address = 0;
+        vm0.cnode_size_bits = 23;
+        vm0.simple_untyped24_pool = 12;
+
+        vm1.num_extra_frame_caps = 0;
+        vm1.extra_frame_map_address = 0;
+        vm1.cnode_size_bits = 23;
+        vm1.simple_untyped24_pool = 12;
+    }
+}
