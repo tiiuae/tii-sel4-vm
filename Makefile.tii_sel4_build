@@ -1,0 +1,2 @@
+vm_qemu_virtio:
+	CAMKES_VM_APP=vm_qemu_virtio make build_camkes
