@@ -7,8 +7,6 @@ cmake_minimum_required(VERSION 3.7.2)
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/apps/Arm/${CAMKES_VM_APP}")
     set(AppArch "Arm" CACHE STRING "" FORCE)
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/apps/x86/${CAMKES_VM_APP}")
-    set(AppArch "x86" CACHE STRING "" FORCE)
 else()
     message(FATAL_ERROR "App does not exist for supported architecture")
 endif()
@@ -37,9 +35,6 @@ if(AppArch STREQUAL "Arm")
     set(KernelArch "arm" CACHE STRING "" FORCE)
     if(AARCH64)
         set(KernelSel4Arch "aarch64" CACHE STRING "" FORCE)
-    else()
-        set(KernelSel4Arch "arm_hyp" CACHE STRING "" FORCE)
-        set(ARM_HYP ON CACHE INTERNAL "" FORCE)
     endif()
     set(KernelArmHypervisorSupport ON CACHE BOOL "" FORCE)
     set(KernelRootCNodeSizeBits 18 CACHE STRING "" FORCE)
@@ -78,65 +73,6 @@ if(AppArch STREQUAL "Arm")
     else()
         set(KernelMaxNumNodes 1 CACHE STRING "" FORCE)
     endif()
-
-    # We dont support SMP configurations on the exynos5422, exynos5410 or TK1
-    if(
-        ("${KernelARMPlatform}" STREQUAL "exynos5422"
-         OR "${KernelARMPlatform}" STREQUAL "exynos5410"
-         OR "${KernelARMPlatform}" STREQUAL "tk1"
-         )
-        AND (${KernelMaxNumNodes} GREATER 1)
-    )
-        message(FATAL_ERROR "${KernelARMPlatform} does not support SMP VMs")
-    endif()
-
-elseif(AppArch STREQUAL "x86")
-
-    set(project_dir "${CMAKE_CURRENT_LIST_DIR}")
-    get_filename_component(resolved_path ${CMAKE_CURRENT_LIST_FILE} REALPATH)
-    # repo_dir is distinct from project_dir as this file is symlinked.
-    # project_dir corresponds to the top level project directory, and
-    # repo_dir is the absolute path after following the symlink.
-    get_filename_component(repo_dir ${resolved_path} DIRECTORY)
-    set(project_dir "${CMAKE_CURRENT_LIST_DIR}/../../")
-    file(GLOB project_modules ${project_dir}/projects/*)
-    list(
-        APPEND
-            CMAKE_MODULE_PATH
-            ${project_dir}/kernel
-            ${project_dir}/projects/seL4_tools/cmake-tool/helpers/
-            ${project_dir}/projects/seL4_tools/elfloader-tool/
-            ${project_dir}/tools/seL4/cmake-tool/helpers/
-            ${project_dir}/tools/seL4/elfloader-tool/
-            ${project_modules}
-    )
-
-    set(LIBZMQ_PATH ${project_dir}/projects/libzmq CACHE INTERNAL "")
-
-    include(application_settings)
-
-    # message(FATAL_ERROR "${CAMKES_VM_SETTINGS_PATH}")
-
-    find_package(camkes-vm REQUIRED)
-    include(${CAMKES_VM_SETTINGS_PATH})
-
-    if(NOT CAMKES_VM_APP)
-        set(CAMKES_VM_APP "optiplex9020" CACHE INTERNAL "")
-    endif()
-
-    # message(WARNING "project dir is ${repo_dir}")
-    # message(FATAL_ERROR ${repo_dir}/apps/${CAMKES_VM_APP}/app_settings.cmake"")
-    include("${repo_dir}/apps/x86/${CAMKES_VM_APP}/app_settings.cmake")
-
-    find_package(seL4 REQUIRED)
-    sel4_configure_platform_settings()
-
-    if(SIMULATION)
-        ApplyCommonSimulationSettings(${KernelSel4Arch})
-        # Force IOMMU back on after CommonSimulationSettings disabled it
-        set(KernelIOMMU ON CACHE BOOL "" FORCE)
-    endif()
-
 else()
     message(FATAL_ERROR "Unsupported Setting")
 endif()
