@@ -16,7 +16,7 @@ if(${PLATFORM} STREQUAL "rpi4")
     set(VmInitRdFile OFF CACHE BOOL "" FORCE)
     set(VmDtbFile ON CACHE BOOL "" FORCE)
     set(VmPCISupport ON CACHE BOOL "" FORCE)
-    set(VmVirtioConsole ON CACHE BOOL "" FORCE)
+    set(VmVirtioConsole OFF CACHE BOOL "" FORCE)
     
     # Keep these flags as reminder if needed later during debug
     #set(LibUtilsDefaultZfLogLevel "0" CACHE STRING "" FORCE)
