@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.8.2)
 
-project(vm-multi C)
+project(vm-intervm C)
 
 include(${CAMKES_ARM_VM_HELPERS_PATH})
 find_package(camkes-vm-linux REQUIRED)
@@ -98,7 +98,7 @@ CAmkESAddImportPath(${KernelARMPlatform})
 
 # Declare root server
 DeclareCAmkESRootserver(
-    vm_multi.camkes
+    vm_intervm.camkes
     CPP_FLAGS
     ${cpp_flags}
     CPP_INCLUDES

@@ -1,0 +1,2 @@
+vm_intervm:
+	CAMKES_VM_APP=vm_intervm make build_camkes 
