@@ -1,0 +1,2 @@
+vm_storage_passthrough:
+	CAMKES_VM_APP=vm_storage_passthrough make build_camkes
