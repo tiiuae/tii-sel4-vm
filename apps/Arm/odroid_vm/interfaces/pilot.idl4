@@ -1,0 +1,8 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+procedure pilot_inf {
+	void recv(in int uart_num, in int c);
+};

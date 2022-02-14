@@ -1,0 +1,10 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+procedure clk_inf {
+        unsigned int set_spi1_freq(in unsigned int hz);
+        unsigned int get_spi1_freq(void);
+};
+

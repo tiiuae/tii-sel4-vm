@@ -1,0 +1,15 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+procedure pwm_inf {
+    void set_motors(in double fl, in double fr, in double bl, in double br);
+
+    /* led->[0,16), level->[0->4096] */
+    void set_led(in int led, in int level);
+
+    /* Sent from the VMM when the VM writes /data/ to address 0x30000000 */
+    void vmsig(in int data);
+};
+

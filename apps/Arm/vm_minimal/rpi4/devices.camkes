@@ -1,0 +1,71 @@
+/*
+ * Copyright 2020, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
+ *
+ * This software may be distributed and modified according to the terms of
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
+ *
+ * @TAG(DATA61_BSD)
+ */
+
+#include <configurations/vm.h>
+
+#define VM_RAM_OFFSET 0
+#define VM_INITRD_MAX_SIZE 0x2000000 //32 MB
+
+#define VM_RAM_BASE    0x50000000
+#define VM_RAM_SIZE    0x10000000 // 256MB
+#define VM_DTB_ADDR    0x5E000000 // (0x60000000 - 0x5E000000) = 0x1000000 (16MB)
+#define VM_INITRD_ADDR 0x5D000000 // (0x60000000 - 0x2000000) - 0x1000000
+
+assembly {
+    composition {}
+    configuration {
+        vm0.linux_address_config = {
+            "linux_ram_base" : VAR_STRINGIZE(VM_RAM_BASE),
+            "linux_ram_paddr_base" : VAR_STRINGIZE(VM_RAM_BASE),
+            "linux_ram_size" : VAR_STRINGIZE(VM_RAM_SIZE),
+            "linux_ram_offset" : VAR_STRINGIZE(VM_RAM_OFFSET),
+            "dtb_addr" : VAR_STRINGIZE(VM_DTB_ADDR),
+            "initrd_max_size" : VAR_STRINGIZE(VM_INITRD_MAX_SIZE),
+            "initrd_addr" : VAR_STRINGIZE(VM_INITRD_ADDR)
+        };
+
+        /* either specify "option root-path" in dhcpd.conf or use nfsroot= here */
+        vm0.linux_image_config = {
+            "linux_bootcmdline" : "console=hvc0 root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 pci=nomsi initcall_debug initcall_blacklist=clk_disable_unused",
+            "linux_stdout" : "hvc0",
+        };
+
+        vm0.dtb = dtb([
+            { "path": "/scb/ethernet@7d580000" }
+        ]);
+
+        /* NOTE: previously, passing the vCPU interface as
+         * untyped MMIO did not work, hence it was passed
+         * through as a regular MMIO.
+         * 
+         * Now it works, when mapping a 8K frame instead of 4K
+         * frame. This is now consistent with other platforms,
+         * and it gets rid of a nagging warning from capdl-loader
+         * about not having a untyped cap for "0xff846000".
+         *
+         * This comment can be removed with the old code when
+         * we have an agreement that the untyped passthrough works
+         * as intended in all cases. Maybe understanding why it
+         * works also wouldn't hurt? In here used to be a comment
+         * from Hannu about Linux kernel wanting to map 8K page
+         * for the vCPU interface, that might be the answer. 
+	 * vm0.mmios = [
+	 *     "0xff846000:0x1000:12"
+         * ];
+         */
+
+        vm0.untyped_mmios = [
+            "0x50000000:28", // RAM PADDR
+            "0xff846000:13"
+        ];
+    }
+}

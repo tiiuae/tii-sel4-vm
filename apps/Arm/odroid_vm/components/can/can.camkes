@@ -1,0 +1,22 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+import "../../interfaces/spi.idl4"; 
+import "../../interfaces/can.idl4"; 
+
+component can {
+	control;
+	has mutex m_test;
+
+       	provides can_inf can;
+//	maybe dataport Buf	can_buf;
+
+	uses spi_inf	spi;
+	dataport Buf	spi_can;
+
+	consumes IntEvent 	Int;
+	emits 	IntEventAck IntAck;
+}
+

@@ -11,7 +11,6 @@
 
 #include <sel4vm/guest_memory_helpers.h>
 
-#include <sel4vmmplatsupport/drivers/cross_vm_connection.h>
 #include <sel4vmmplatsupport/drivers/pci_helper.h>
 #include <pci/helper.h>
 
@@ -30,10 +29,17 @@ struct dataport_iterator_cookie {
     vm_t *vm;
 };
 
+struct camkes_shared_memory_connection {
+    dataport_caps_handle_t *handle;
+    emit_fn emit_fn;
+    seL4_Word consume_badge;
+    const char *connection_name;
+};
+
 // these are defined in the dataport's glue code
 extern dataport_caps_handle_t buff_handle;
 
-static struct camkes_crossvm_connection connections[] = {
+static struct camkes_shared_memory_connection connections[] = {
 	{&buff_handle, NULL, -1, NULL}
 };
 

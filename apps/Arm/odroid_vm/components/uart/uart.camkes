@@ -1,0 +1,22 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+import "../../interfaces/uart.idl4"; 
+import "../../interfaces/pilot.idl4"; 
+
+component uart {
+	control;
+
+        provides uart_inf       uart;
+        dataport Buf            uart0base;
+        dataport Buf            client_buf;
+        consumes DataAvailable  interrupt;
+        has semaphore           read_sem;
+        has semaphore           write_sem;
+	attribute int           ID;
+
+	uses pilot_inf pilot;
+}
+

@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+
+echo "Testing ping on virtual interface:"
+ping 192.168.1.2 -v -c 5 -W 2
+# Success code for Ping: 0 (Ping returns non-zero value if packet count and timeout is not met)
+if [ $? -eq 0 ]
+then
+    echo "Ping test was successful"
+else
+    echo "Ping test failed"
+fi

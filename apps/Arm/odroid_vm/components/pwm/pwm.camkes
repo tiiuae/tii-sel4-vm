@@ -1,0 +1,23 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+/* 
+ * This PPM driver only outputs PPM values received to the screen 
+ */
+
+component pwm {
+    control;
+    provides pwm_inf pwm;
+    consumes pwm_signal signal;
+    consumes timer_evt timer_update;
+
+    dataport Buf i2c0;
+    consumes DataAvailable i2c0_int;
+
+    has semaphore bus_sem;
+    has mutex set_motors;
+
+    has mutex sig;
+}

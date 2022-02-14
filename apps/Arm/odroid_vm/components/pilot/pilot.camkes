@@ -1,0 +1,22 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+import "../../interfaces/uart.idl4"; 
+import "../../interfaces/pwm.idl4";
+
+component pilot {
+	uses uart_inf uart_gcs;
+        dataport Buf  gcs_buf;
+
+	uses uart_inf uart_px4;
+        dataport Buf  px4_buf;
+
+        uses pwm_inf pwm;
+	emits pwm_signal signal;
+
+	provides pilot_inf mavlink;
+
+	emits restart restart_vm;
+}

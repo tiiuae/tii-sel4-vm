@@ -1,0 +1,14 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+procedure gpio_inf{
+	// SPI chip select control
+	void spi_can_nss(in int state);
+	void spi_mpu_nss(in int state);
+	void spi_acc_mag_nss(in int state);
+	void spi_gyro_nss(in int state);
+	void spi_baro_nss(in int state);
+	void spi_ext_nss(in int state);
+};

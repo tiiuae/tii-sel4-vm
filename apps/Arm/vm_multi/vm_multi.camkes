@@ -103,7 +103,7 @@ assembly {
         vm1.buff_id = 0;
         vm1.buff_size = 4096;
 
-        vm0.buff_hardware_cached = false;
-        vm1.buff_hardware_cached = false;
+        vm0.buff_hardware_cached = true;
+        vm1.buff_hardware_cached = true;
     }
 }
