@@ -43,32 +43,6 @@ static struct camkes_shared_memory_connection connections[] = {
 	{&buff_handle, NULL, -1, NULL}
 };
 
-static int consume_callback(vm_t *vm, void *cookie)
-{
-    consume_connection_event(vm, connections[0].consume_badge, true);
-    return 0;
-}
-
-static int write_buffer(vm_t *vm, uintptr_t load_addr)
-{
-	char *value = "test";
-
-	vm_ram_mark_allocated(vm, load_addr, 4);
-	clean_vm_ram_touch(vm, load_addr, 4, vm_guest_ram_write_callback, value); 
-
-    return 0;
-}
-
-static int read_buffer(vm_t *vm, uintptr_t load_addr)
-{
-    char *value_test;
-
-    vm_ram_mark_allocated(vm, load_addr, 4);
-    clean_vm_ram_touch(vm, load_addr, 4, vm_guest_ram_read_callback, &value_test);
-
-    return 0;
-}
-
 static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
 {
     int error;
@@ -115,27 +89,6 @@ void init_shared_memory(vm_t *vm, void *cookie)
     if (err) {
         ZF_LOGE("Failed to map dataport memory");
         return -1;
-    }
-
-    if (!strcmp(linux_image_config.vm_name, "vm0")) { 
-        
-        write_buffer(vm, CONNECTION_BASE_ADDRESS);
-
-        char *ptr = (char *)buff;
-        printf("VM: %s - Writting buff: %p - 0x%x\n", linux_image_config.vm_name, ptr, *ptr);
-
-    } else if (!strcmp(linux_image_config.vm_name, "vm1")) { 
-        int i=0;
-        
-        while (i<999999999) {
-            i++;
-        }
-            
-        read_buffer(vm, CONNECTION_BASE_ADDRESS);
-
-        char *ptr = (char *)buff;
-        printf("VM: %s - Reading buff: %p - 0x%x\n", linux_image_config.vm_name, ptr, *ptr);
-
     }
 }
 
