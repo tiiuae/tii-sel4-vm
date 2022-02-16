@@ -1,0 +1,126 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ * Copyright 2022, Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+#include <configurations/vm.h>
+
+import <std_connector.camkes>;
+import <global-connectors.camkes>;
+import <seL4VMDTBPassthrough.idl4>;
+import <FileServerInterface.camkes>;
+import <FileServer/FileServer.camkes>;
+import <SerialServer/SerialServer.camkes>;
+import <TimeServer/TimeServer.camkes>;
+import <vm-connectors.camkes>;
+import <vm_config.camkes>;
+
+struct vswitch_mapping {
+       string mac_addr;
+       int send_id;
+       int recv_id;
+};
+
+component VM {
+    VM_INIT_DEF()
+    maybe uses VirtQueueDev vq_recv;
+    maybe uses VirtQueueDrv vq_send;
+    attribute vswitch_mapping vswitch_layout[] = [];
+    attribute string vswitch_mac_address = "";
+    maybe dataport Buf buff;
+    maybe consumes SendEvent done;
+    emits SendEvent ready;
+}
+
+assembly {
+    composition {
+
+        /* Boilerplate composition definitions */
+        VM_GENERAL_COMPOSITION_DEF()
+
+        /* VM composition definitions */
+        VM_COMPOSITION_DEF(0)
+        VM_COMPOSITION_DEF(1)
+        VM_COMPOSITION_DEF(2)
+
+        /* VM serial connections */
+        VM_VIRTUAL_SERIAL_COMPOSITION_DEF(0,1,2)
+
+        /* These are the VirtQueue components needed for
+         * User VM (vm0) to Connection VM (vm1) virtio-net
+         * connection 
+         */
+        component VirtQueueInit vnet_vq;
+        connection seL4VirtQueues vnet_vq_conn(to vnet_vq.init, from vm0.vq_send, from vm0.vq_recv, from vm1.vq_send, from vm1.vq_recv);
+
+        /* DTB passthroughs */
+        connection seL4VMDTBPassthrough vm0_dtb(from vm0.dtb_self, to vm0.dtb);
+        connection seL4VMDTBPassthrough vm1_dtb(from vm1.dtb_self, to vm1.dtb);
+        connection seL4VMDTBPassthrough vm2_dtb(from vm2.dtb_self, to vm2.dtb);
+
+        /* Inter-VM comms between User (vm0) and Storage (vm2) VMs */
+        connection seL4GlobalAsynch user_storage_event_conn(from vm0.ready, to vm2.done);
+        connection seL4GlobalAsynch storage_user_event_conn(from vm2.ready, to vm0.done);
+        connection seL4SharedDataWithCaps user_storage_shared_mem(from vm0.buff, to vm2.buff);
+    }
+    configuration {
+
+        VM_GENERAL_CONFIGURATION_DEF()
+
+        /* VM configurations */
+        VM_CONFIGURATION_DEF(0)
+        VM_CONFIGURATION_DEF(1)
+        VM_CONFIGURATION_DEF(2)
+
+        /* VM serial connections configuration */
+        VM_VIRTUAL_SERIAL_CONFIGURATION_DEF(0,1,2)
+
+        vm0.num_extra_frame_caps = 0;
+        vm0.extra_frame_map_address = 0;
+        vm0.cnode_size_bits = 18;
+        vm0.simple_untyped21_pool = 12;
+        vm0.simple_untyped12_pool = 12;
+        vm0.vswitch_mac_address = "02:00:00:00:AA:02";
+        vm0.vswitch_layout = [{"mac_addr": "02:00:00:00:AA:01", "recv_id": 0, "send_id":1}];
+
+        vm1.num_extra_frame_caps = 0;
+        vm1.extra_frame_map_address = 0;
+        vm1.cnode_size_bits = 18;
+        vm1.simple_untyped21_pool = 12;
+        vm1.simple_untyped12_pool = 12;
+        vm1.vswitch_mac_address = "02:00:00:00:AA:01";
+        vm1.vswitch_layout = [{"mac_addr": "02:00:00:00:AA:02", "recv_id": 0, "send_id":1}];
+
+        vm2.num_extra_frame_caps = 0;
+        vm2.extra_frame_map_address = 0;
+        vm2.cnode_size_bits = 18;
+        vm2.simple_untyped21_pool = 12;
+        vm2.simple_untyped12_pool = 12;
+
+        /* VM0-VM1 Virtio-Net VirtQueue configurations */
+        vm0.vq_recv_id = 0;
+        vm0.vq_recv_shmem_size = 8192;
+        vm0.vq_send_id = 1;
+        vm0.vq_send_shmem_size = 8192;
+
+        vm1.vq_recv_id = 0;
+        vm1.vq_recv_shmem_size = 8192;
+        vm1.vq_send_id = 1;
+        vm1.vq_send_shmem_size = 8192;
+
+        /* VirtQueue topology */
+        vnet_vq.init_topology = [{ "drv" : "vm0.vq_send", "dev" : "vm1.vq_recv"},
+                                 { "drv" : "vm1.vq_send", "dev" : "vm0.vq_recv"}];
+
+        /* VM0-VM2 Inter-VM */
+        vm0.buff_id = 0;
+        vm0.buff_size = 4096;
+        vm2.buff_id = 0;
+        vm2.buff_size = 4096;
+
+        vm0.buff_hardware_cached = true;
+        vm2.buff_hardware_cached = true;
+    }
+}

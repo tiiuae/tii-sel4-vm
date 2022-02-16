@@ -1,9 +1,13 @@
 #
 # Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+# Copyright 2022, Technology Innovation Institute
 #
 # SPDX-License-Identifier: BSD-2-Clause
 #
 cmake_minimum_required(VERSION 3.7.2)
+
+# General settings
+set(RELEASE OFF CACHE BOOL "Performance optimized build")
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/apps/Arm/${CAMKES_VM_APP}")
     set(AppArch "Arm" CACHE STRING "" FORCE)
@@ -29,8 +33,6 @@ if(AppArch STREQUAL "Arm")
     mark_as_advanced(CMAKE_INSTALL_PREFIX)
     include(application_settings)
 
-    include(${CMAKE_CURRENT_LIST_DIR}/easy-settings.cmake)
-
     # Kernel settings
     set(KernelArch "arm" CACHE STRING "" FORCE)
     if(AARCH64)
@@ -54,7 +56,7 @@ if(AppArch STREQUAL "Arm")
     if(NOT CAMKES_VM_APP)
         message(
             FATAL_ERROR
-                "CAMKES_VM_APP is not defined. Pass CAMKES_VM_APP to specify the VM application to build e.g. vm_minimal, odroid_vm"
+                "CAMKES_VM_APP is not defined. Pass CAMKES_VM_APP to specify the VM application to build e.g. tii_release, vm_minimal"
         )
     endif()
 
