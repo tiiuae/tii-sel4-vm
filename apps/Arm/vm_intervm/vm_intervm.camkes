@@ -30,7 +30,8 @@ component VM {
     maybe uses VirtQueueDrv send2;
     attribute vswitch_mapping vswitch_layout[] = [];
     attribute string vswitch_mac_address = "";
-    maybe dataport Buf buff;
+    maybe dataport Buf ring1;
+    maybe dataport Buf ring2;
     emits SendEvent ready;
     maybe consumes SendEvent done;
 }
@@ -57,7 +58,8 @@ assembly {
         /* Inter VM */
         connection seL4GlobalAsynch event_conn_1(from vm0.ready, to vm1.done);
         connection seL4GlobalAsynch event_conn_2(from vm1.ready, to vm0.done);
-        connection seL4SharedDataWithCaps shared_mem_2(from vm0.buff, to vm1.buff);
+        connection seL4SharedDataWithCaps shared_mem_1(from vm0.ring1, to vm1.ring1);
+        connection seL4SharedDataWithCaps shared_mem_2(from vm0.ring2, to vm1.ring2);
     }
     configuration {
         VM_GENERAL_CONFIGURATION_DEF()
@@ -98,12 +100,20 @@ assembly {
                                  { "drv" : "vm1.send1", "dev" : "vm0.recv1"}];
 
         /* Inter VM */
-        vm0.buff_id = 0;
-        vm0.buff_size = 4096;
-        vm1.buff_id = 0;
-        vm1.buff_size = 4096;
+        vm0.ring1_id = 0;
+        vm0.ring1_size = 4096;
+        vm1.ring1_id = 0;
+        vm1.ring1_size = 4096;
 
-        vm0.buff_hardware_cached = true;
-        vm1.buff_hardware_cached = true;
+        vm0.ring1_hardware_cached = true;
+        vm1.ring1_hardware_cached = true;
+
+        vm0.ring2_id = 0;
+        vm0.ring2_size = 4096;
+        vm1.ring2_id = 0;
+        vm1.ring2_size = 4096;
+
+        vm0.ring2_hardware_cached = true;
+        vm1.ring2_hardware_cached = true;
     }
 }
