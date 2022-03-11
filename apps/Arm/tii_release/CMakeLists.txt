@@ -26,12 +26,9 @@ elseif("${PLATFORM}" STREQUAL "qemu-arm-virt")
 endif()
 
 # Rootfs files for each VM
-#set(rootfs_file_user_vm       "${CMAKE_CURRENT_SOURCE_DIR}/linux/linux-initrd-user-vm.cpio.gz")
-#set(rootfs_file_connection_vm "${CMAKE_CURRENT_SOURCE_DIR}/linux/linux-initrd-connection-vm.cpio.gz")
-#set(rootfs_file_storage_vm    "${CMAKE_CURRENT_SOURCE_DIR}/linux/linux-initrd-storage-vm.cpio.gz")
-set(rootfs_file_user_vm       "${CMAKE_CURRENT_SOURCE_DIR}/linux/rootfs.cpio.gz")
-set(rootfs_file_connection_vm "${CMAKE_CURRENT_SOURCE_DIR}/linux/rootfs.cpio.gz")
-set(rootfs_file_storage_vm    "${CMAKE_CURRENT_SOURCE_DIR}/linux/rootfs.cpio.gz")
+set(rootfs_file_user_vm        "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/br-images/rootfs.cpio.gz")
+set(rootfs_file_connection_vm  "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/br-images/rootfs.cpio.gz")
+set(rootfs_file_storage_vm     "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/br-images/rootfs.cpio.gz")
 
 # Setup User VM overlay
 AddFileToOverlayDir(
@@ -118,9 +115,9 @@ AddToFileServer(
     rootfs_target_storage_vm
 )
 
-AddToFileServer("linux-user-vm"       "${CMAKE_CURRENT_SOURCE_DIR}/linux/linux")
-AddToFileServer("linux-connection-vm" "${CMAKE_CURRENT_SOURCE_DIR}/linux/linux")
-AddToFileServer("linux-storage-vm"    "${CMAKE_CURRENT_SOURCE_DIR}/linux/linux")
+AddToFileServer("linux-user-vm"       "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
+AddToFileServer("linux-connection-vm" "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
+AddToFileServer("linux-storage-vm"    "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
 
 AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmOnDemandDeviceInstall VmEmmc2NoDMA)
 
@@ -128,8 +125,7 @@ DefineCAmkESVMFileServer()
 
 #DeclareCAmkESComponent(VM SOURCES src/shared_memory.c)
 
-CAmkESAddImportPath(${CMAKE_CURRENT_SOURCE_DIR})
-CAmkESMaybeAddImportPath(${KernelARMPlatform})
+CAmkESAddImportPath(${CMAKE_CURRENT_SOURCE_DIR}/${KernelARMPlatform})
 
 # Declare root server
 DeclareCAmkESRootserver(
