@@ -26,9 +26,9 @@ elseif("${PLATFORM}" STREQUAL "qemu-arm-virt")
 endif()
 
 # Rootfs files for each VM
-set(rootfs_file_user_vm        "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/br-images/rootfs.cpio.gz")
-set(rootfs_file_connection_vm  "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/br-images/rootfs.cpio.gz")
-set(rootfs_file_storage_vm     "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/br-images/rootfs.cpio.gz")
+set(rootfs_file_user_vm        "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs.cpio.gz")
+set(rootfs_file_connection_vm  "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs.cpio.gz")
+set(rootfs_file_storage_vm     "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs.cpio.gz")
 
 # Setup User VM overlay
 AddFileToOverlayDir(
