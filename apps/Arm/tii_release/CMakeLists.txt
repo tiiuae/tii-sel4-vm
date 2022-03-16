@@ -115,8 +115,7 @@ AddToFileServer(
     rootfs_target_storage_vm
 )
 
-AddToFileServer("linux-user-vm"       "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
-AddToFileServer("linux-connection-vm" "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
+AddToFileServer("linux-vm"            "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
 AddToFileServer("linux-storage-vm"    "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
 
 AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmOnDemandDeviceInstall VmEmmc2NoDMA)
