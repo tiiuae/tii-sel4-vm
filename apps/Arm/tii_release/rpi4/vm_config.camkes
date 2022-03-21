@@ -142,11 +142,11 @@ assembly {
         ];
         vm2.irqs =  [];
         /*vm2.dtb = dtb([{}]);*/
-        vm2.dtb = dtb([{}
-		{"path": "/soc/mailbox@7e00b880"},
-		{"path": "/soc/cprman@7e101000"},
-		{"path": "/soc/gpio@7e200000"},
-		{"path": "/emmc2bus/emmc2@7e340000"}
+        vm2.dtb = dtb([
+            { "path": "/soc/mailbox@7e00b880" },
+            { "path": "/soc/cprman@7e101000" },
+            { "path": "/soc/gpio@7e200000" },
+            { "path": "/emmc2bus/emmc2@7e340000" }
         ]);
     }
 }
