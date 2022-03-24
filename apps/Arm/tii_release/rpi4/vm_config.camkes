@@ -21,7 +21,7 @@
 #define VM_DTB_ADDR(num) \
     (VM_RAM_END(num) - VM_DTB_MAX_SIZE)
 #define VM_INITRD_ADDR(num) \
-    (VM_DTB_ADDR(num) - VM_INITRD_MAX_SIZE)
+    (VM_RAM_END(num) - VM_INITRD_MAX_SIZE - VM_DTB_MAX_SIZE)
 
 /*
  * VM0 RAM area will start from 1GB limit,
@@ -46,12 +46,12 @@
  *    -----  end  -----
  */
 
-#define VM0_RAM_BASE        0x48000000
+#define VM0_RAM_BASE        0x50000000
 #define VM0_RAM_SIZE        0x08000000 /* 128 MB for VM0 */
 #define VM0_DTB_ADDR        VM_DTB_ADDR(0)
 #define VM0_INITRD_ADDR     VM_INITRD_ADDR(0)
 
-#define VM1_RAM_BASE        0x50000000
+#define VM1_RAM_BASE        0x48000000
 #define VM1_RAM_SIZE        0x08000000 /* 128 MB for VM1 */
 #define VM1_DTB_ADDR        VM_DTB_ADDR(1)
 #define VM1_INITRD_ADDR     VM_INITRD_ADDR(1)
@@ -76,15 +76,17 @@ assembly {
         };
         vm0.num_vcpus = 1;
         vm0.linux_image_config = {
-            "linux_bootcmdline" : "console=hvc0 root=/dev/ram0 nosmp rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
+            "linux_bootcmdline" : "console=hvc0 root=/dev/ram0 nosmp rw debug loglevel=8 pci=nomsi,realloc=off,bios initcall_blacklist=clk_disable_unused",
             "linux_stdout" : "hvc0",
             "linux_name" : "linux-vm",
             "dtb_name" : "",
             "initrd_name" : "linux-initrd-user-vm",
         };
+        vm0.mmios = [
+            "0xff846000:1000:12", /* GIC-400 Virtual CPU interface (Virtual Machine view) */
+        ];
         vm0.untyped_mmios = [
-            "0xff846000:13", /* GIC-400 Virtual CPU interface (Virtual Machine view) */
-            "0x40000000:28"  /* RAM */
+            "0x50000000:27"  /* RAM */
         ];
         vm0.irqs =  [];
         vm0.dtb = dtb([{}]);
@@ -102,15 +104,17 @@ assembly {
         };
         vm1.num_vcpus = 1;
         vm1.linux_image_config = {
-            "linux_bootcmdline" : "console=hvc0 root=/dev/ram0 nosmp rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
+            "linux_bootcmdline" : "console=hvc0 root=/dev/ram0 nosmp rw debug loglevel=8 pci=nomsi,realloc=off,bios initcall_blacklist=clk_disable_unused",
             "linux_stdout" : "hvc0",
             "linux_name" : "linux-vm",
             "dtb_name" : "",
             "initrd_name" : "linux-initrd-connection-vm",
         };
+        vm1.mmios = [
+            "0xff846000:1000:12", /* GIC-400 Virtual CPU interface (Virtual Machine view) */
+        ];
         vm1.untyped_mmios = [
-            "0xff846000:13", /* GIC-400 Virtual CPU interface (Virtual Machine view) */
-            "0x50000000:28"  /* RAM */
+            "0x48000000:27"  /* RAM */
         ];
         vm1.irqs =  [];
         vm1.dtb = dtb([
@@ -130,15 +134,17 @@ assembly {
         };
         vm2.num_vcpus = 1;
         vm2.linux_image_config = {
-            "linux_bootcmdline" : "console=hvc0 root=/dev/ram0 nosmp rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
+            "linux_bootcmdline" : "console=hvc0 root=/dev/ram0 nosmp rw debug loglevel=8 pci=nomsi,realloc=off,bios initcall_blacklist=clk_disable_unused",
             "linux_stdout" : "hvc0",
             "linux_name" : "linux-storage-vm",
             "dtb_name" : "",
             "initrd_name" : "linux-initrd-storage-vm",
         };
+        vm2.mmios = [
+            "0xff846000:1000:12", /* GIC-400 Virtual CPU interface (Virtual Machine view) */
+        ];
         vm2.untyped_mmios = [
-            "0xff846000:13", /* GIC-400 Virtual CPU interface (Virtual Machine view) */
-            "0x60000000:30"  /* RAM */
+            "0x10000000:28"  /* RAM */
         ];
         vm2.irqs =  [];
         /*vm2.dtb = dtb([{}]);*/

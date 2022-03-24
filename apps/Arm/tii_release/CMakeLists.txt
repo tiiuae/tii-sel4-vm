@@ -115,14 +115,27 @@ AddToFileServer(
     rootfs_target_storage_vm
 )
 
-AddToFileServer("linux-vm"            "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
-AddToFileServer("linux-storage-vm"    "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
+AddToFileServer("linux-vm"         "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
+AddToFileServer("linux-storage-vm" "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
 
-AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmOnDemandDeviceInstall VmEmmc2NoDMA)
+AddCamkesCPPFlag(cpp_flags 
+                 CONFIG_VARS
+                 VmOnDemandDeviceInstall
+                 VmEmmc2NoDMA
+                 VmPCISupport
+                 VmVirtioNetVirtqueue
+                 VmVirtioConsole
+                 VmInitRdFile)
 
 DefineCAmkESVMFileServer()
 
-#DeclareCAmkESComponent(VM SOURCES src/shared_memory.c)
+# Add the shared_memory source file to only
+# VM0 and VM2. The VM1 will not have the
+# dataport buffer handles, and the linker
+# will fail trying to find them.
+#
+DeclareCAmkESComponent(VM_instance_vm0 SOURCES src/shared_memory.c)
+DeclareCAmkESComponent(VM_instance_vm2 SOURCES src/shared_memory.c)
 
 CAmkESAddImportPath(${CMAKE_CURRENT_SOURCE_DIR}/${KernelARMPlatform})
 

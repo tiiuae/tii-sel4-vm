@@ -6,20 +6,24 @@
 #include <autoconf.h>
 #include <camkes.h>
 #include <vmlinux.h>
+
 #include <sel4vm/guest_vm.h>
 #include <sel4vm/guest_ram.h>
-
 #include <sel4vm/guest_memory_helpers.h>
 
+#include <sel4vmmplatsupport/guest_memory_util.h>
 #include <sel4vmmplatsupport/drivers/pci_helper.h>
+
 #include <pci/helper.h>
 
 #include <signal.h>
 
 #ifdef CONFIG_PLAT_QEMU_ARM_VIRT
-#define CONNECTION_BASE_ADDRESS 0xDF000000
+#define CONNECTION_BASE_ADDRESS_BUFF0 0xDF000000
+#define CONNECTION_BASE_ADDRESS_BUFF1 0xDF001000
 #else
-#define CONNECTION_BASE_ADDRESS 0x3F000000
+#define CONNECTION_BASE_ADDRESS_BUFF0 0x3F000000
+#define CONNECTION_BASE_ADDRESS_BUFF1 0x3F001000
 #endif
 
 struct dataport_iterator_cookie {
@@ -37,37 +41,8 @@ struct camkes_shared_memory_connection {
 };
 
 // these are defined in the dataport's glue code
-extern dataport_caps_handle_t buff_handle;
-
-static struct camkes_shared_memory_connection connections[] = {
-	{&buff_handle, NULL, -1, NULL}
-};
-
-static int consume_callback(vm_t *vm, void *cookie)
-{
-    consume_connection_event(vm, connections[0].consume_badge, true);
-    return 0;
-}
-
-static int write_buffer(vm_t *vm, uintptr_t load_addr)
-{
-	char *value = "test";
-
-	vm_ram_mark_allocated(vm, load_addr, 4);
-	clean_vm_ram_touch(vm, load_addr, 4, vm_guest_ram_write_callback, value); 
-
-    return 0;
-}
-
-static int read_buffer(vm_t *vm, uintptr_t load_addr)
-{
-    char *value_test;
-
-    vm_ram_mark_allocated(vm, load_addr, 4);
-    clean_vm_ram_touch(vm, load_addr, 4, vm_guest_ram_read_callback, &value_test);
-
-    return 0;
-}
+extern dataport_caps_handle_t ivm_buff0_handle;
+extern dataport_caps_handle_t ivm_buff1_handle;
 
 static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
 {
@@ -84,7 +59,7 @@ static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
     uintptr_t frame_start = ROUND_DOWN(addr, BIT(page_size));
     if (frame_start <  dataport_start ||
         frame_start > dataport_start + dataport_size) {
-        ZF_LOGE("Error: Not Dataport region");
+        ZF_LOGE("Error: Not a Dataport region");
         return frame_result;
     }
     int page_idx = (frame_start - dataport_start) / BIT(page_size);
@@ -95,47 +70,45 @@ static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
     return frame_result;
 }
 
-void init_shared_memory(vm_t *vm, void *cookie)
+static int init_dataport(vm_t *vm, dataport_caps_handle_t ring_handle, const uintptr_t conn_base_addr)
 {
     int err;
-
-    vm_memory_reservation_t *dataport_reservation = vm_reserve_memory_at(vm, CONNECTION_BASE_ADDRESS, 0x1000,
+    vm_memory_reservation_t *dataport_reservation_ring = vm_reserve_memory_at(vm, conn_base_addr, 0x1000,
                                                                          default_error_fault_callback,
                                                                          NULL);
-    struct dataport_iterator_cookie *dataport_cookie = malloc(sizeof(struct dataport_iterator_cookie));
-    if (!dataport_cookie) {
+    struct dataport_iterator_cookie *dataport_cookie_ring = malloc(sizeof(struct dataport_iterator_cookie));
+    if (!dataport_cookie_ring) {
         ZF_LOGE("Failed to allocate dataport iterator cookie");
         return -1;
     }
-    dataport_cookie->vm = vm;
-    dataport_cookie->dataport_frames = buff_handle.get_frame_caps();
-    dataport_cookie->dataport_start = CONNECTION_BASE_ADDRESS;
-    dataport_cookie->dataport_size = buff_handle.get_size();
-    err = vm_map_reservation(vm, dataport_reservation, dataport_memory_iterator, (void *)dataport_cookie);
+    dataport_cookie_ring->vm = vm;
+    dataport_cookie_ring->dataport_frames = ring_handle.get_frame_caps();
+    dataport_cookie_ring->dataport_start = conn_base_addr;
+    dataport_cookie_ring->dataport_size = ring_handle.get_size();
+    err = vm_map_reservation(vm, dataport_reservation_ring, dataport_memory_iterator, (void *)dataport_cookie_ring);
     if (err) {
         ZF_LOGE("Failed to map dataport memory");
         return -1;
     }
+    return 0;
+}
 
-    if (!strcmp(linux_image_config.vm_name, "vm0")) { 
-        
-        write_buffer(vm, CONNECTION_BASE_ADDRESS);
+void init_shared_memory(vm_t *vm, void *cookie)
+{
+    int err;
 
-        char *ptr = (char *)buff;
-        printf("VM: %s - Writting buff: %p - 0x%x\n", linux_image_config.vm_name, ptr, *ptr);
+    // BUFF 0
+    err = init_dataport(vm, ivm_buff0_handle, CONNECTION_BASE_ADDRESS_BUFF0);
+    if (err){
+        ZF_LOGE("Failed to init dataport");
+        return -1;
+    }
 
-    } else if (!strcmp(linux_image_config.vm_name, "vm1")) { 
-        int i=0;
-        
-        while (i<999999999) {
-            i++;
-        }
-            
-        read_buffer(vm, CONNECTION_BASE_ADDRESS);
-
-        char *ptr = (char *)buff;
-        printf("VM: %s - Reading buff: %p - 0x%x\n", linux_image_config.vm_name, ptr, *ptr);
-
+    // BUFF 1
+    err = init_dataport(vm, ivm_buff1_handle, CONNECTION_BASE_ADDRESS_BUFF1);
+    if (err){
+        ZF_LOGE("Failed to init dataport");
+        return -1;
     }
 }
 

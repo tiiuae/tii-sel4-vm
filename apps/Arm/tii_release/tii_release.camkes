@@ -25,13 +25,14 @@ struct vswitch_mapping {
 
 component VM {
     VM_INIT_DEF()
-    maybe uses VirtQueueDev vq_recv;
-    maybe uses VirtQueueDrv vq_send;
     attribute vswitch_mapping vswitch_layout[] = [];
     attribute string vswitch_mac_address = "";
-    maybe dataport Buf buff;
-    maybe consumes SendEvent done;
+    maybe uses VirtQueueDev vq_recv;
+    maybe uses VirtQueueDrv vq_send;
+    maybe dataport Buf(4096) ivm_buff0;
+    maybe dataport Buf(4096) ivm_buff1;
     emits SendEvent ready;
+    maybe consumes SendEvent done;
 }
 
 assembly {
@@ -52,8 +53,10 @@ assembly {
          * User VM (vm0) to Connection VM (vm1) virtio-net
          * connection 
          */
-        component VirtQueueInit vnet_vq;
-        connection seL4VirtQueues vnet_vq_conn(to vnet_vq.init, from vm0.vq_send, from vm0.vq_recv, from vm1.vq_send, from vm1.vq_recv);
+        component VirtQueueInit vnet_vqinit0;
+        component VirtQueueInit vnet_vqinit1;
+        connection seL4VirtQueues vnet_virtq_conn0(to vnet_vqinit0.init, from vm0.vq_send, from vm1.vq_recv);
+        connection seL4VirtQueues vnet_virtq_conn1(to vnet_vqinit1.init, from vm0.vq_recv, from vm1.vq_send);
 
         /* DTB passthroughs */
         connection seL4VMDTBPassthrough vm0_dtb(from vm0.dtb_self, to vm0.dtb);
@@ -61,9 +64,11 @@ assembly {
         connection seL4VMDTBPassthrough vm2_dtb(from vm2.dtb_self, to vm2.dtb);
 
         /* Inter-VM comms between User (vm0) and Storage (vm2) VMs */
-        connection seL4GlobalAsynch user_storage_event_conn(from vm0.ready, to vm2.done);
-        connection seL4GlobalAsynch storage_user_event_conn(from vm2.ready, to vm0.done);
-        connection seL4SharedDataWithCaps user_storage_shared_mem(from vm0.buff, to vm2.buff);
+        connection seL4GlobalAsynch ivm_event_conn1(from vm0.ready, to vm2.done);
+        connection seL4GlobalAsynch ivm_event_conn2(from vm2.ready, to vm1.done);
+        connection seL4SharedDataWithCaps ivm_shared_mem1(from vm0.ivm_buff0, to vm2.ivm_buff0);
+        connection seL4SharedDataWithCaps ivm_shared_mem2(from vm0.ivm_buff1, to vm2.ivm_buff1);
+
     }
     configuration {
 
@@ -98,7 +103,7 @@ assembly {
         vm2.cnode_size_bits = 19;
         vm2.simple_untyped21_pool = 12;
         vm2.simple_untyped12_pool = 12;
-
+    
         /* VM0-VM1 Virtio-Net VirtQueue configurations */
         vm0.vq_recv_id = 0;
         vm0.vq_recv_shmem_size = 8192;
@@ -115,12 +120,20 @@ assembly {
                                  { "drv" : "vm1.vq_send", "dev" : "vm0.vq_recv"}];
 
         /* VM0-VM2 Inter-VM */
-        vm0.buff_id = 0;
-        vm0.buff_size = 4096;
-        vm2.buff_id = 0;
-        vm2.buff_size = 4096;
+        vm0.ivm_buff0_id = 0;
+        vm0.ivm_buff0_size = 4096;
+        vm2.ivm_buff0_id = 0;
+        vm2.ivm_buff0_size = 4096;
 
-        vm0.buff_hardware_cached = true;
-        vm2.buff_hardware_cached = true;
+        vm0.ivm_buff0_hardware_cached = true;
+        vm2.ivm_buff0_hardware_cached = true;
+
+        vm0.ivm_buff1_id = 0;
+        vm0.ivm_buff1_size = 4096;
+        vm2.ivm_buff1_id = 0;
+        vm2.ivm_buff1_size = 4096;
+
+        vm0.ivm_buff1_hardware_cached = true;
+        vm2.ivm_buff1_hardware_cached = true;
     }
 }
