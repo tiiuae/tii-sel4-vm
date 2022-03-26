@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
-set(supported "qemu-arm-virt;rpi4")
+set(supported "rpi4")
 if(NOT "${PLATFORM}" IN_LIST supported)
     message(FATAL_ERROR "PLATFORM: ${PLATFORM} not supported.
          Supported: ${supported}")

@@ -28,6 +28,8 @@ endif()
 # Rootfs files for each VM
 set(rootfs_file_user_vm        "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs-vm0.cpio.gz")
 set(rootfs_file_connection_vm  "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs-vm1.cpio.gz")
+# Setting it for the storage vm to avoid errors from the build system
+# Ideally VM2 doesn't use any ramdisk.
 set(rootfs_file_storage_vm     "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs-vm1.cpio.gz")
 
 # Setup User VM overlay
@@ -115,8 +117,11 @@ AddToFileServer(
     rootfs_target_storage_vm
 )
 
+# Normal Linux Kernel Image
 AddToFileServer("linux-vm"       "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
+# Hardened OS Kernel Image
 AddToFileServer("linux-storage-vm"    "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/Image")
+# Hardened OS device tree blob
 AddToFileServer("custom-linux-dtb" "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/custom-linux-dtb")
 
 AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmEmmc2NoDMA VmVUSB VmVchan Tk1DeviceFwd Tk1Insecure)

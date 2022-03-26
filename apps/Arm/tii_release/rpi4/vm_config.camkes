@@ -13,56 +13,7 @@
  */
 #define VM_DTB_MAX_SIZE     0x200000  /* 2 MB */
 #define VM_INITRD_MAX_SIZE  0x2000000 /* 32 MB should do */
-
 #define VM_RAM_OFFSET       0
-
-#define VM_RAM_END(num) \
-    (VM##num_RAM_BASE + VM##numRAM_SIZE)
-#define VM_DTB_ADDR(num) \
-    (VM_RAM_END(num) - VM_DTB_MAX_SIZE)
-#define VM_INITRD_ADDR(num) \
-    (VM_DTB_ADDR(num) - VM_INITRD_MAX_SIZE)
-
-/*
- * VM0 RAM area will start from 1GB limit,
- * and the areas of each VM are placed right
- * after the other, going upwards.
- *
- * RAM layout (not to scale):
- *
- *    ----- start -----
- *    |               |
- *    |               |
- *    |               |
- *    |      RAM      |
- *    |               |
- *    |               |
- *    |               |
- *    ---- initrd -----
- *    |               |
- *    |               |
- *    -----  DTB  -----
- *    |               |
- *    -----  end  -----
- */
-
-#if 0
-#define VM0_RAM_BASE        0x50000000
-#define VM0_RAM_SIZE        0x08000000 /* 128 MB for VM0 */
-#define VM0_DTB_ADDR        VM_DTB_ADDR(0)
-#define VM0_INITRD_ADDR     VM_INITRD_ADDR(0)
-
-#define VM1_RAM_BASE        0x48000000
-#define VM1_RAM_SIZE        0x10000000 /* 256 MB for VM1 */
-#define VM1_DTB_ADDR        VM_DTB_ADDR(1)
-#define VM1_INITRD_ADDR     VM_INITRD_ADDR(1)
-
-#define VM2_RAM_BASE        0x10000000
-#define VM2_RAM_SIZE        0x10000000 /* 256 MB for VM2 */
-#define VM2_DTB_ADDR        VM_DTB_ADDR(2)
-#define VM2_INITRD_ADDR     VM_INITRD_ADDR(2)
-#endif
-
 
 #define VM0_RAM_BASE 0x50000000
 #define VM0_RAM_SIZE 0x08000000 // 0x0800_0000 = 128MB
@@ -75,14 +26,13 @@
 #define VM1_INITRD_ADDR 0x4D000000 //VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 
 #define VM2_RAM_BASE 0x10000000
-#define VM2_RAM_SIZE 0x10000000	// 0x2800_0000 = 640MB FIX ME JP: update the dts we have 0x2800_0000 and not 0x1000_0000
+#define VM2_RAM_SIZE 0x10000000	// 0x1000_0000 = 256MB
 #define VM2_DTB_ADDR 0x17000000 //VM2_RAM_BASE + 0x7000000
 #define VM2_INITRD_ADDR 0x15000000 //VM2_DTB_ADDR - VM_INITRD_MAX_SIZE
 
 assembly {
 	composition {}
 	configuration {
-
 
 		/// VM0 - User VM
         vm0.linux_address_config = {
@@ -106,7 +56,7 @@ assembly {
 	    	"0xff846000:0x1000:12" /* GIC-400 Virtual CPU interface (Virtual Machine view) */
         ];
         vm0.untyped_mmios = [
-            "0x50000000:27"  //RAM
+            "0x50000000:27"  // RAM
         ];
         vm0.irqs =  [];
         vm0.dtb = dtb([
@@ -135,7 +85,7 @@ assembly {
 	    	"0xff846000:0x1000:12" /* GIC-400 Virtual CPU interface (Virtual Machine view) */
         ];
         vm1.untyped_mmios = [
-            "0x48000000:27",  //RAM
+            "0x48000000:27",  // RAM
         ];
         vm1.irqs =  [];
         vm1.dtb = dtb([{"path": "/scb/ethernet@7d580000"}]);
@@ -163,9 +113,7 @@ assembly {
 	    	"0xff846000:0x1000:12" /* GIC-400 Virtual CPU interface (Virtual Machine view) */
         ];
         vm2.untyped_mmios = [
-            "0x10000000:28",  //RAM 0x1000_0000 -> 0x1FFF_FFFF
-            /*"0x20000000:28",  //RAM 0x2000_0000 -> 0x2FFF_FFFF
-            "0x30000000:27"  //RAM 0x3000_0000 -> 0x3800_0000*/
+            "0x10000000:28",  // RAM
         ];
         vm2.irqs =  [];
         vm2.dtb = dtb([

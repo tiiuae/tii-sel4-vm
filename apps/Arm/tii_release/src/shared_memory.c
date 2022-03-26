@@ -1,6 +1,5 @@
 /*
  * Copyright 2022, SSRC, TII
- *
  */
 
 #include <autoconf.h>
