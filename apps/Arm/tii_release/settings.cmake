@@ -5,6 +5,13 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
+set(RELEASE                       OFF CACHE BOOL "Performance optimized build")
+set(LibUtilsDefaultZfLogLevel     "3" CACHE STRING "")
+set(CapDLLoaderPrintUntypeds      ON CACHE BOOL "" FORCE)
+set(CapDLLoaderPrintCapDLObjects  ON CACHE BOOL "" FORCE)
+set(CapDLLoaderPrintDeviceInfo    ON CACHE BOOL "" FORCE)
+
+
 set(supported "qemu-arm-virt;rpi4")
 if(NOT "${PLATFORM}" IN_LIST supported)
     message(FATAL_ERROR "PLATFORM: ${PLATFORM} not supported.
@@ -18,9 +25,10 @@ set(VmPCISupport            ON CACHE BOOL "" FORCE)
 set(VmVirtioNetArping       OFF CACHE BOOL "" FORCE)
 set(VmVirtioNetVirtqueue    ON CACHE BOOL "" FORCE)
 set(VmVirtioConsole         ON CACHE BOOL "" FORCE)
-# set(VmRootfs              "" CACHE STRING "" FORCE)
+set(VmRootfsMmcblk0p2       OFF CACHE BOOL "" FORCE)
 set(VmInitRdFile            ON CACHE BOOL "" FORCE)
 set(VmDtbFile               OFF CACHE BOOL "" FORCE)
+set(VmTk1InitrdRootfs       OFF CACHE BOOL "" FORCE)
 
 if("${PLATFORM}" STREQUAL "qemu-arm-virt")
     set(QEMU_MEMORY             "4096")
