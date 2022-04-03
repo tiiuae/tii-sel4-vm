@@ -144,7 +144,7 @@ static void register_pci_device(void)
 
 int irq_ext_modify(vm_vcpu_t *vcpu, unsigned int source, unsigned int irq, bool set);
 
-static bool handle_special_cases(rpcmsg_t *msg)
+static bool handle_async(rpcmsg_t *msg)
 {
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_SET_IRQ:
@@ -169,16 +169,21 @@ static bool handle_special_cases(rpcmsg_t *msg)
 
 static void intervm_callback(void *opaque)
 {
-    rpcmsg_t *msg = rpcmsg_queue_head(rx_queue);
-    if (msg) {
-        if (handle_special_cases(msg)) {
+    int err = intervm_sink_reg_callback(intervm_callback, opaque);
+    assert(!err);
+
+    for (;;) {
+        rpcmsg_t *msg = rpcmsg_queue_head(rx_queue);
+        if (!msg) {
+            break;
+        }
+        if (handle_async(msg)) {
             rpcmsg_queue_advance_head(rx_queue);
         } else {
             sync_sem_post(&handoff);
+	    break;
         }
     }
-    int err = intervm_sink_reg_callback(intervm_callback, opaque);
-    assert(!err);
 }
 
 void wait_for_host_qemu(void)
