@@ -444,7 +444,7 @@ static uint32_t get_fault_data(vm_vcpu_t *vcpu)
 
 memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu, uintptr_t paddr, size_t len, void *cookie)
 {
-    if (paddr < 0x50000000 || paddr >= 0x50100000) {
+    if (paddr < 0x60000000 || paddr >= 0x60100000) {
         if (paddr < 0x09000000 || paddr >= 0x09001000) {
             return FAULT_UNHANDLED;
         }
