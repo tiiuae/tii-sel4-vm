@@ -234,6 +234,8 @@ static unsigned int qemu_index(uintptr_t addr, void *cookie)
     return qemu->idx << QEMU_PCIDEV_SHIFT;
 }
 
+static unsigned int seq_id;
+
 int vmm_pci_mem_device_qemu_read(void *cookie, uintptr_t offset, size_t size, uint32_t *result)
 {
     assert(size >= 0 && size <= 4);
@@ -241,7 +243,7 @@ int vmm_pci_mem_device_qemu_read(void *cookie, uintptr_t offset, size_t size, ui
     rpcmsg_t *msg = rpcmsg_queue_tail(tx_queue);
     assert(msg);
 
-    msg->mr0 = QEMU_OP_READ | qemu_index(offset, cookie);
+    msg->mr0 = QEMU_OP_READ | qemu_index(offset, cookie) | (seq_id++ << QEMU_ID_SHIFT);
     msg->mr1 = offset;
     msg->mr2 = size;
     rpcmsg_queue_advance_tail(tx_queue);
@@ -282,7 +284,7 @@ int vmm_pci_mem_device_qemu_write(void *cookie, uintptr_t offset, size_t size, u
     rpcmsg_t *msg = rpcmsg_queue_tail(tx_queue);
     assert(msg);
 
-    msg->mr0 = QEMU_OP_WRITE | qemu_index(offset, cookie);
+    msg->mr0 = QEMU_OP_WRITE | qemu_index(offset, cookie) | (seq_id++ << QEMU_ID_SHIFT);
     msg->mr1 = offset;
     msg->mr2 = size;
     memcpy(&msg->mr3, &value, size);
