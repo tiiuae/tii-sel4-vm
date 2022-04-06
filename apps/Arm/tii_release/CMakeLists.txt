@@ -30,6 +30,60 @@ set(rootfs_file_user_vm        "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/roo
 set(rootfs_file_connection_vm  "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs.cpio.gz")
 set(rootfs_file_storage_vm     "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/rootfs.cpio.gz")
 
+
+# Parent of build directory
+get_filename_component(CMAKE_BINARY_DIR_PARENT ${CMAKE_BINARY_DIR} DIRECTORY)
+set(guest_kernel_src_dir       "${CMAKE_BINARY_DIR_PARENT}/projects/torvalds/linux")
+set(guest_kernel_build_dir     "${CMAKE_BINARY_DIR_PARENT}/linux-build")
+
+execute_process(
+    COMMAND bash "-c" "ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make -C ${guest_kernel_src_dir} -s kernelversion"
+    OUTPUT_VARIABLE guest_kernel_ver
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ECHO_OUTPUT_VARIABLE
+    )
+#message("Guest kernel version: ${guest_kernel_ver}")
+set(connection_module          "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux-modules/lib/modules/${guest_kernel_ver}/extra/connection.ko")
+
+# Prepare the Cross-VM scripts
+set(cross_vm_test_script       "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_test.sh")
+set(cross_vm_init_script_src   "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_module_init.template")
+set(cross_vm_init_script_dest  "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_module_init.sh")
+
+file(READ "${cross_vm_init_script_src}" cv_init_script_src)
+string(REGEX REPLACE "\/__LINUX_VERSION__" "\/${guest_kernel_ver}" cv_init_script "${cv_init_script_src}")
+file(WRITE "${cross_vm_init_script_dest}" "${cv_init_script}")
+
+#DefineLinuxModule(
+#    ${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-modules/camkes-connector-modules/connection
+#    output_module
+#    output_module_target
+#    KERNEL_DIR
+#    ${guest_kernel_build_dir}
+#    ARCH
+#    arm64
+#    CROSS_COMPILE
+#    aarch64-linux-gnu-
+#)
+message(FATAL_ERROR "test")
+
+# Compile CrossVM dataport Apps
+ExternalProject_Add(
+    dataport-apps
+    URL
+    file:///${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-apps/camkes-connector-apps/pkgs/dataport
+    BINARY_DIR
+    ${CMAKE_CURRENT_BINARY_DIR}/dataport_apps
+    INSTALL_COMMAND
+    ""
+    BUILD_ALWAYS
+    ON
+    EXCLUDE_FROM_ALL
+    CMAKE_ARGS
+    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    -DLINUX_KERNEL_DIR=${guest_kernel_src_dir}
+)
+
 # Setup User VM overlay
 AddFileToOverlayDir(
     "inittab"
@@ -43,6 +97,33 @@ AddFileToOverlayDir(
     "etc/init.d"
     overlay_user_vm
 )
+AddExternalProjFilesToOverlay(
+    dataport-apps
+    ${CMAKE_CURRENT_BINARY_DIR}/dataport_apps
+    overlay_user_vm
+    "usr/bin"
+    FILES
+    dataport_read
+    dataport_write
+)
+AddFileToOverlayDir(
+    "connection.ko"
+    ${connection_module}
+    "lib/modules/${guest_kernel_ver}/kernel/drivers/vmm"
+    overlay_user_vm
+)
+AddFileToOverlayDir(
+    "S91cross_vm_init"
+    ${cross_vm_init_script_dest}
+    "etc/init.d"
+    overlay_user_vm
+)
+AddFileToOverlayDir(
+    "S92cross_vm_test"
+    ${cross_vm_test_script}
+    "etc/init.d"
+    overlay_user_vm
+)
 AddOverlayDirToRootfs(
     overlay_user_vm
     ${rootfs_file_user_vm}
@@ -52,6 +133,7 @@ AddOverlayDirToRootfs(
     rootfs_target_user_vm
     GZIP
 )
+
 
 # Setup Connection VM overlays
 AddFileToOverlayDir(
@@ -76,12 +158,40 @@ AddOverlayDirToRootfs(
     GZIP
 )
 
+
 # Setup Storage VM overlays
 AddFileToOverlayDir(
     "inittab"
     ${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/inittab_hvc0
     "etc"
     overlay_storage_vm
+)
+AddExternalProjFilesToOverlay(
+    dataport-apps
+    ${CMAKE_CURRENT_BINARY_DIR}/dataport_apps
+    overlay_storage_vm
+    "usr/bin"
+    FILES
+    dataport_read
+    dataport_write
+)
+AddFileToOverlayDir(
+    "connection.ko"
+    ${connection_module}
+    "lib/modules/${guest_kernel_ver}/kernel/drivers/vmm"
+    overlay_storage_vm
+)
+AddFileToOverlayDir(
+    "S91cross_vm_init"
+    ${cross_vm_init_script_dest}
+    "etc/init.d"
+    overlay_user_vm
+)
+AddFileToOverlayDir(
+    "S92cross_vm_test"
+    ${cross_vm_test_script}
+    "etc/init.d"
+    overlay_user_vm
 )
 AddOverlayDirToRootfs(
     overlay_storage_vm

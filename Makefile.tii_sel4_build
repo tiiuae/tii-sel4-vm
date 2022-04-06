@@ -1,8 +1,3 @@
-release_defconfig:
-	@echo 'PLATFORM=rpi4' > .config
-	@echo 'NUM_NODES=4' >> .config
-	@echo 'CROSS_COMPILE=aarch64-linux-gnu-' >> .config
-
 tii_release:
 	CAMKES_VM_APP=tii_release make build_camkes
 

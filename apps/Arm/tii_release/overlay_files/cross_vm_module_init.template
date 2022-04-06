@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+# The __LINUX_VERSION__ is used as a placeholder for 
+# the Linux version number triple (e.g. "4.7.2").
+
+echo "Initializing Cross-VM module"
+
+mknod /dev/ttyAMA0 c 204 64
+
+insmod /lib/modules/__LINUX_VERSION__/kernel/drivers/vmm/connection.ko
+
