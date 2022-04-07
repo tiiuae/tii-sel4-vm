@@ -7,9 +7,9 @@
 
 set(RELEASE                       OFF CACHE BOOL "Performance optimized build")
 set(LibUtilsDefaultZfLogLevel     "3" CACHE STRING "")
-set(CapDLLoaderPrintUntypeds      ON CACHE BOOL "" FORCE)
-set(CapDLLoaderPrintCapDLObjects  ON CACHE BOOL "" FORCE)
-set(CapDLLoaderPrintDeviceInfo    ON CACHE BOOL "" FORCE)
+set(CapDLLoaderPrintUntypeds      OFF CACHE BOOL "" FORCE)
+set(CapDLLoaderPrintCapDLObjects  OFF CACHE BOOL "" FORCE)
+set(CapDLLoaderPrintDeviceInfo    OFF CACHE BOOL "" FORCE)
 
 
 set(supported "qemu-arm-virt;rpi4")
