@@ -1,3 +1,12 @@
+#tii_release: build_uboot build_linux build_modules build_rootfs
+#	CAMKES_VM_APP=tii_release make build_camkes
+
+tii_release_guest_components:
+	make build_uboot && \
+	make build_linux && \
+	make build_modules && \
+	make build_rootfs
+
 tii_release:
 	CAMKES_VM_APP=tii_release make build_camkes
 

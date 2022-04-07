@@ -12,6 +12,10 @@ project(tii_release C)
 include(${CAMKES_ARM_VM_HELPERS_PATH})
 find_package(camkes-vm-linux REQUIRED)
 include(${CAMKES_VM_LINUX_HELPERS_PATH})
+include(${CAMKES_VM_LINUX_SOURCE_HELPERS_PATH})
+include(${CAMKES_VM_LINUX_MODULE_HELPERS_PATH})
+include(ExternalProject)
+include(external-project-helpers)
 
 if("${PLATFORM}" STREQUAL "rpi4")
 # Create our CPP Flags based on ARM VM config variables
@@ -65,7 +69,7 @@ file(WRITE "${cross_vm_init_script_dest}" "${cv_init_script}")
 #    CROSS_COMPILE
 #    aarch64-linux-gnu-
 #)
-message(FATAL_ERROR "test")
+
 
 # Compile CrossVM dataport Apps
 ExternalProject_Add(
