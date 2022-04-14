@@ -29,8 +29,8 @@
 
 #define VIRTIO_QEMU_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
 
-int vmm_pci_mem_device_qemu_read(void *cookie, uintptr_t offset, size_t size, uint32_t *result);
-int vmm_pci_mem_device_qemu_write(void *cookie, uintptr_t offset, size_t size, uint32_t value);
+int qemu_start_read(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size);
+int qemu_start_write(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size, uint32_t value);
 
 extern void *ctrl;
 extern void *memdev;
@@ -144,9 +144,26 @@ static void register_pci_device(void)
 
 int irq_ext_modify(vm_vcpu_t *vcpu, unsigned int source, unsigned int irq, bool set);
 
+static int vcpu_finish_qemu_read(rpcmsg_t *msg);
+static int vcpu_finish_qemu_write(rpcmsg_t *msg);
+
 static bool handle_async(rpcmsg_t *msg)
 {
+    int err;
+
     switch (QEMU_OP(msg->mr0)) {
+    case QEMU_OP_READ:
+        err = vcpu_finish_qemu_read(msg);
+        if (err) {
+            return false;
+        }
+        break;
+    case QEMU_OP_WRITE:
+        err = vcpu_finish_qemu_write(msg);
+        if (err) {
+            return false;
+        }
+        break;
     case QEMU_OP_SET_IRQ:
         irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_QEMU_PLAT_INTERRUPT_LINE, true);
         break;
@@ -167,22 +184,28 @@ static bool handle_async(rpcmsg_t *msg)
     return true;
 }
 
+static rpcmsg_t *peek_sync_msg(rpcmsg_queue_t *q)
+{
+    for (;;) {
+        rpcmsg_t *msg = rpcmsg_queue_head(q);
+        if (!msg) {
+            return NULL;
+        }
+        if (!handle_async(msg)) {
+            return msg;
+        }
+        rpcmsg_queue_advance_head(q);
+    }
+}
+
 static void intervm_callback(void *opaque)
 {
     int err = intervm_sink_reg_callback(intervm_callback, opaque);
     assert(!err);
 
-    for (;;) {
-        rpcmsg_t *msg = rpcmsg_queue_head(rx_queue);
-        if (!msg) {
-            break;
-        }
-        if (handle_async(msg)) {
-            rpcmsg_queue_advance_head(rx_queue);
-        } else {
-            sync_sem_post(&handoff);
-	    break;
-        }
+    rpcmsg_t *msg = peek_sync_msg(rx_queue);
+    if (msg) {
+        sync_sem_post(&handoff);
     }
 }
 
@@ -209,13 +232,6 @@ static inline void qemu_doorbell_ring(void)
     intervm_source_emit();
 }
 
-static inline void vmm_doorbell_wait(void)
-{
-//    ZF_LOGD("VMM waiting for doorbell");
-    sync_sem_wait(&handoff);
-//    ZF_LOGD("QEMU rang VMM's doorbell");
-}
-
 static bool debug_blacklisted(uintptr_t addr)
 {
     return true;
@@ -236,45 +252,26 @@ static unsigned int qemu_index(uintptr_t addr, void *cookie)
 
 static unsigned int seq_id;
 
-int vmm_pci_mem_device_qemu_read(void *cookie, uintptr_t offset, size_t size, uint32_t *result)
+int qemu_start_read(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size)
 {
-    assert(size >= 0 && size <= 4);
+    assert(size >= 0 && size <= sizeof(seL4_Word));
 
     rpcmsg_t *msg = rpcmsg_queue_tail(tx_queue);
     assert(msg);
 
-    msg->mr0 = QEMU_OP_READ | qemu_index(offset, cookie) | (seq_id++ << QEMU_ID_SHIFT);
+    seL4_Word vcpu_id = vcpu ? vcpu->vcpu_id : QEMU_VCPU_NONE;
+
+    msg->mr0 = QEMU_OP_READ | qemu_index(offset, cookie) | QEMU_ID_FROM(seq_id++) | (vcpu_id << QEMU_VCPU_SHIFT);
     msg->mr1 = offset;
     msg->mr2 = size;
     rpcmsg_queue_advance_tail(tx_queue);
 
     qemu_doorbell_ring();
-//    ZF_LOGD("waiting for reply");
-    vmm_doorbell_wait();
-
-    msg = rpcmsg_queue_head(rx_queue);
-    assert(msg);
-    memcpy(result, &msg->mr3, size);
-    if (QEMU_OP(msg->mr0) != QEMU_OP_READ || msg->mr1 != offset || msg->mr2 != size) {
-        ZF_LOGE("message does not match");
-        rpcmsg_queue_dump("rx", rx_queue, rx_queue->head);
-        printf("-----------\n");
-        rpcmsg_queue_dump("tx", tx_queue, tx_queue->tail);
-        printf("-----------\n");
-    }
-
-    rpcmsg_queue_advance_head(rx_queue);
-
-    uint32_t value = 0;
-    memcpy(&value, result, size);
-    if (!debug_blacklisted(offset)) {
-        ZF_LOGD("offset=%"PRIx64" size=%d value=%08"PRIx32, offset, size, value);
-    }
 
     return 0;
 }
 
-int vmm_pci_mem_device_qemu_write(void *cookie, uintptr_t offset, size_t size, uint32_t value)
+int qemu_start_write(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size, uint32_t value)
 {
     if (!debug_blacklisted(offset)) {
         ZF_LOGD("offset=%"PRIx64" size=%zu value=%08"PRIu32, offset, size, value);
@@ -284,30 +281,58 @@ int vmm_pci_mem_device_qemu_write(void *cookie, uintptr_t offset, size_t size, u
     rpcmsg_t *msg = rpcmsg_queue_tail(tx_queue);
     assert(msg);
 
-    msg->mr0 = QEMU_OP_WRITE | qemu_index(offset, cookie) | (seq_id++ << QEMU_ID_SHIFT);
+    seL4_Word vcpu_id = vcpu ? vcpu->vcpu_id : QEMU_VCPU_NONE;
+
+    msg->mr0 = QEMU_OP_WRITE | qemu_index(offset, cookie) | QEMU_ID_FROM(seq_id++) | (vcpu_id << QEMU_VCPU_SHIFT);
     msg->mr1 = offset;
     msg->mr2 = size;
     memcpy(&msg->mr3, &value, size);
     rpcmsg_queue_advance_tail(tx_queue);
 
     qemu_doorbell_ring();
-//    ZF_LOGD("waiting for reply");
-    vmm_doorbell_wait();
-
-    msg = rpcmsg_queue_head(rx_queue);
-    assert(msg);
-    if (QEMU_OP(msg->mr0) != QEMU_OP_WRITE || msg->mr1 != offset || msg->mr2 != size) {
-        ZF_LOGE("message does not match");
-        rpcmsg_queue_dump("rx", rx_queue, rx_queue->head);
-        printf("-----------\n");
-        rpcmsg_queue_dump("tx", tx_queue, tx_queue->tail);
-        printf("-----------\n");
-    }
-    rpcmsg_queue_advance_head(rx_queue);
 
     return 0;
 }
 
+static inline vm_vcpu_t *vcpu_from_msg(rpcmsg_t *msg)
+{
+    unsigned int vcpu_id = QEMU_VCPU(msg->mr0);
+    if (vcpu_id == QEMU_VCPU_NONE) {
+        return NULL;
+    }
+    return vm->vcpus[vcpu_id];
+}
+
+static int vcpu_finish_qemu_read(rpcmsg_t *msg)
+{
+    uint32_t data = (uint32_t) msg->mr3;
+
+    vm_vcpu_t *vcpu = vcpu_from_msg(msg);
+    if (vcpu == NULL) {
+        return -1;
+    }
+
+    seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
+    set_vcpu_fault_data(vcpu, data << s);
+
+    advance_vcpu_fault(vcpu);
+
+    return 0;
+}
+
+static int vcpu_finish_qemu_write(rpcmsg_t *msg)
+{
+    vm_vcpu_t *vcpu = vcpu_from_msg(msg);
+    if (vcpu == NULL) {
+        return -1;
+    }
+
+    advance_vcpu_fault(vcpu);
+
+    return 0;
+}
+
+#if 0
 static void qemu_putc_log(char ch)
 {
     logbuffer_t *lb = logbuffer;
@@ -328,7 +353,7 @@ static void qemu_putc_log(char ch)
         qemu_doorbell_ring();
         vmm_doorbell_wait();
     
-        msg = rpcmsg_queue_head(rx_queue);
+        msg = peek_sync_msg(rx_queue);
         if (QEMU_OP(msg->mr0) != QEMU_OP_PUTC_LOG) {
             ZF_LOGE("message does not match");
             rpcmsg_queue_dump("rx", rx_queue, rx_queue->head);
@@ -341,14 +366,23 @@ static void qemu_putc_log(char ch)
         lb->sz = 0;
     }
 }
+#endif
 
 #define QEMU_READ_OP(sz) do {                                           \
     uint32_t result;                                                    \
-    (void) vmm_pci_mem_device_qemu_read(cookie, offset, sz, &result);   \
+    (void) qemu_start_read(NULL, cookie, offset, sz);   \
+    sync_sem_wait(&handoff); \
+    rpcmsg_t *msg = rpcmsg_queue_head(rx_queue); \
+    result = (uint32_t) msg->mr3; \
+    rpcmsg_queue_advance_head(rx_queue); \
     return result;                                                      \
 } while (0)
 
-#define QEMU_WRITE_OP(sz) (void) vmm_pci_mem_device_qemu_write(cookie, offset, sz, val);
+#define QEMU_WRITE_OP(sz) do { \
+    (void) qemu_start_write(NULL, cookie, offset, sz, val); \
+    sync_sem_wait(&handoff); \
+    rpcmsg_queue_advance_head(rx_queue); \
+} while (0)
 
 static uint8_t qemu_pci_read8(void *cookie, vmm_pci_address_t addr, unsigned int offset)
 {
@@ -398,7 +432,6 @@ static vmm_pci_config_t make_qemu_pci_config(void *cookie)
 static void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     int err;
-    uint32_t data = 0;
 
     if (paddr == 0x09000018) {
         /* UART flag register: both RX and TX FIFOs empty */
@@ -406,13 +439,10 @@ static void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
         return;
     }
 
-    err = vmm_pci_mem_device_qemu_read(NULL, paddr, len, &data);
+    err = qemu_start_read(vcpu, NULL, paddr, len);
     if (err) {
         ZF_LOGE("Failure performing read from QEMU");
     }
-
-    seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-    set_vcpu_fault_data(vcpu, data << s);
 }
 
 static void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
@@ -429,11 +459,13 @@ static void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
     if (paddr == 0x09000000) {
         /* UART data register */
         printf("%c", (unsigned char) value);
+#if 0
         qemu_putc_log((unsigned char) value);
+#endif
         return;
     }
 
-    err = vmm_pci_mem_device_qemu_write(NULL, paddr, len, value);
+    err = qemu_start_write(vcpu, NULL, paddr, len, value);
     if (err) {
         ZF_LOGE("Failure writing to QEMU");
     }
@@ -458,7 +490,7 @@ memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu, uintptr
         qemu_write_fault(vcpu, paddr, len);
     }
 
-    advance_vcpu_fault(vcpu);
+    /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
 }
 
