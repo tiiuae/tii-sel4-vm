@@ -39,7 +39,7 @@ if(AppArch STREQUAL "Arm")
     set(KernelArmHypervisorSupport ON CACHE BOOL "" FORCE)
     set(KernelRootCNodeSizeBits 18 CACHE STRING "" FORCE)
     set(KernelArmVtimerUpdateVOffset OFF CACHE BOOL "" FORCE)
-    set(KernelArmDisableWFIWFETraps ON CACHE BOOL "" FORCE)
+    set(KernelArmDisableWFIWFETraps OFF CACHE BOOL "" FORCE)
 
     # capDL settings
     set(CapDLLoaderMaxObjects 90000 CACHE STRING "" FORCE)
