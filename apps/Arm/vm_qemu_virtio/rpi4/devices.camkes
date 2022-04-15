@@ -36,9 +36,9 @@ assembly {
             "initrd_max_size" : VAR_STRINGIZE(VM_INITRD_MAX_SIZE),
             "initrd_addr" : VAR_STRINGIZE(VM0_INITRD_ADDR),
         };
-        vm0.num_vcpus = 4;
+        vm0.num_vcpus = 1;
         vm0.linux_image_config = {
-            "linux_bootcmdline" : "console=ttyS0,115200 earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 pci=nomsi initcall_blacklist=clk_disable_unused",
+            "linux_bootcmdline" : "console=ttyS0,115200 earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 pci=nomsi initcall_blacklist=clk_disable_unused nosmp",
             "linux_stdout" : "/soc/serial@7e215040",
             "dtb_name" : "",
         };
