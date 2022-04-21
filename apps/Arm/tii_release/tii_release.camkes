@@ -89,6 +89,7 @@ assembly {
         vm0.simple_untyped12_pool = 12;
         vm0.vswitch_mac_address = "02:00:00:00:AA:01";
         vm0.vswitch_layout = [{"mac_addr": "02:00:00:00:AA:02", "recv_id": 0, "send_id":1}];
+        vm0._priority = 105;
 
         vm1.num_extra_frame_caps = 0;
         vm1.extra_frame_map_address = 0;
@@ -97,12 +98,14 @@ assembly {
         vm1.simple_untyped12_pool = 12;
         vm1.vswitch_mac_address = "02:00:00:00:AA:02";
         vm1.vswitch_layout = [{"mac_addr": "02:00:00:00:AA:01", "recv_id": 0, "send_id":1}];
+        vm1._priority = 104;
 
         vm2.num_extra_frame_caps = 0;
         vm2.extra_frame_map_address = 0;
         vm2.cnode_size_bits = 19;
         vm2.simple_untyped21_pool = 12;
         vm2.simple_untyped12_pool = 12;
+        vm2._priority = 103;
     
         /* VM0-VM1 Virtio-Net VirtQueue configurations */
         vm0.vq_recv_id = 0;

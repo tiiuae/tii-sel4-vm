@@ -6,13 +6,14 @@
 #
 
 set(RELEASE                       OFF CACHE BOOL "Performance optimized build")
-set(LibUtilsDefaultZfLogLevel     "3" CACHE STRING "")
+set(LibUtilsDefaultZfLogLevel     "4" CACHE STRING "")
 set(CapDLLoaderPrintUntypeds      OFF CACHE BOOL "" FORCE)
 set(CapDLLoaderPrintCapDLObjects  OFF CACHE BOOL "" FORCE)
 set(CapDLLoaderPrintDeviceInfo    OFF CACHE BOOL "" FORCE)
 
 
-set(supported "qemu-arm-virt;rpi4")
+set(supported "rpi4")
+#set(supported "qemu-arm-virt;rpi4")
 if(NOT "${PLATFORM}" IN_LIST supported)
     message(FATAL_ERROR "PLATFORM: ${PLATFORM} not supported.
          Supported: ${supported}")
@@ -30,10 +31,10 @@ set(VmInitRdFile            ON CACHE BOOL "" FORCE)
 set(VmDtbFile               OFF CACHE BOOL "" FORCE)
 set(VmTk1InitrdRootfs       OFF CACHE BOOL "" FORCE)
 
-if("${PLATFORM}" STREQUAL "qemu-arm-virt")
-    set(QEMU_MEMORY             "4096")
-    set(KernelArmCPU            cortex-a53 CACHE STRING "" FORCE)
-    set(qemu_sim_extra_args     "-netdev tap,id=mynet0,ifname=tap0,script=no,downscript=no -device virtio-net,netdev=mynet0,mac=52:55:00:d1:55:01")
-    set(KernelArmExportPCNTUser ON CACHE BOOL "" FORCE)
-    set(KernelArmExportPTMRUser ON CACHE BOOL "" FORCE)
-endif()
+#if("${PLATFORM}" STREQUAL "qemu-arm-virt")
+#    set(QEMU_MEMORY             "4096")
+#    set(KernelArmCPU            cortex-a53 CACHE STRING "" FORCE)
+#    set(qemu_sim_extra_args     "-netdev tap,id=mynet0,ifname=tap0,script=no,downscript=no -device virtio-net,netdev=mynet0,mac=52:55:00:d1:55:01")
+#    set(KernelArmExportPCNTUser ON CACHE BOOL "" FORCE)
+#    set(KernelArmExportPTMRUser ON CACHE BOOL "" FORCE)
+#endif()

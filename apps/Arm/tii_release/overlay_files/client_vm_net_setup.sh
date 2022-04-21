@@ -8,4 +8,4 @@
 set -e
 
 ifconfig eth0 up
-#udhcpc -i eth0
+udhcpc -i eth0 -t 30 -n

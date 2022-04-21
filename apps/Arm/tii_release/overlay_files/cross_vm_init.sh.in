@@ -11,5 +11,5 @@ echo "Initializing Cross-VM module"
 
 mknod /dev/ttyAMA0 c 204 64
 
+insmod /lib/modules/__LINUX_VERSION__/kernel/drivers/uio/uio.ko
 insmod /lib/modules/__LINUX_VERSION__/kernel/drivers/vmm/connection.ko
-
