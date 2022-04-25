@@ -4,7 +4,6 @@
 tii_release_guest_components:
 	make build_uboot && \
 	make build_linux && \
-	make build_modules && \
 	make build_rootfs
 
 tii_release:
