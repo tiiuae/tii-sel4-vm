@@ -17,6 +17,9 @@ import <TimeServer/TimeServer.camkes>;
 import <vm-connectors.camkes>;
 import <vm_config.camkes>;
 
+#define CROSSVM_DP_SIZE       4096
+#define VIRTQUEUE_SHMEM_SIZE  8192
+
 struct vswitch_mapping {
        string mac_addr;
        int send_id;
@@ -25,14 +28,19 @@ struct vswitch_mapping {
 
 component VM {
     VM_INIT_DEF()
+
     attribute vswitch_mapping vswitch_layout[] = [];
     attribute string vswitch_mac_address = "";
-    maybe uses VirtQueueDev vq_recv;
-    maybe uses VirtQueueDrv vq_send;
-    maybe dataport Buf(4096) ivm_buff0;
-    maybe dataport Buf(4096) ivm_buff1;
-    emits SendEvent ready;
-    maybe consumes SendEvent done;
+
+    maybe uses VirtQueueDev virtqueue_receive_0;
+    maybe uses VirtQueueDrv virtqueue_send_0;
+    maybe uses VirtQueueDev virtqueue_receive_1;
+    maybe uses VirtQueueDrv virtqueue_send_1;
+
+    maybe dataport Buf(CROSSVM_DP_SIZE) crossvm_dp_0;
+    maybe dataport Buf(CROSSVM_DP_SIZE) crossvm_dp_1;
+    emits SendEvent crossvm_dp_ready;
+    maybe consumes SendEvent crossvm_dp_done;
 }
 
 assembly {
@@ -53,10 +61,8 @@ assembly {
          * User VM (vm0) to Connection VM (vm1) virtio-net
          * connection 
          */
-        component VirtQueueInit vnet_vqinit0;
-        component VirtQueueInit vnet_vqinit1;
-        connection seL4VirtQueues vnet_virtq_conn0(to vnet_vqinit0.init, from vm0.vq_send, from vm1.vq_recv);
-        connection seL4VirtQueues vnet_virtq_conn1(to vnet_vqinit1.init, from vm0.vq_recv, from vm1.vq_send);
+        component VirtQueueInit vnet_virtqueue_init_vm0_vm1;
+        connection seL4VirtQueues vnet_conn_vm0_vm1(to vnet_virtqueue_init_vm0_vm1.init, from vm0.virtqueue_send_0, from vm0.virtqueue_receive_0, from vm1.virtqueue_send_0, from vm1.virtqueue_receive_0);
 
         /* DTB passthroughs */
         connection seL4VMDTBPassthrough vm0_dtb(from vm0.dtb_self, to vm0.dtb);
@@ -64,10 +70,10 @@ assembly {
         connection seL4VMDTBPassthrough vm2_dtb(from vm2.dtb_self, to vm2.dtb);
 
         /* Inter-VM comms between User (vm0) and Storage (vm2) VMs */
-        connection seL4GlobalAsynch ivm_event_conn1(from vm0.ready, to vm2.done);
-        connection seL4GlobalAsynch ivm_event_conn2(from vm2.ready, to vm1.done);
-        connection seL4SharedDataWithCaps ivm_shared_mem1(from vm0.ivm_buff0, to vm2.ivm_buff0);
-        connection seL4SharedDataWithCaps ivm_shared_mem2(from vm0.ivm_buff1, to vm2.ivm_buff1);
+        connection seL4GlobalAsynch crossvm_eventconn_vm0ready_vm2done(from vm0.crossvm_dp_ready, to vm2.crossvm_dp_done);
+        connection seL4GlobalAsynch crossvm_eventconn_vm2ready_vm0done(from vm2.crossvm_dp_ready, to vm1.crossvm_dp_done);
+        connection seL4SharedDataWithCaps crossvm_shmem_vm0dp0_to_vm2dp1(from vm0.crossvm_dp_0, to vm2.crossvm_dp_1);
+        connection seL4SharedDataWithCaps crossvm_shmem_vm2dp0_to_vm0dp1(from vm2.crossvm_dp_0, to vm0.crossvm_dp_1);
 
     }
     configuration {
@@ -82,6 +88,7 @@ assembly {
         /* VM serial connections configuration */
         VM_VIRTUAL_SERIAL_CONFIGURATION_DEF(0,1,2)
 
+
         vm0.num_extra_frame_caps = 0;
         vm0.extra_frame_map_address = 0;
         vm0.cnode_size_bits = 19;
@@ -89,7 +96,7 @@ assembly {
         vm0.simple_untyped12_pool = 12;
         vm0.vswitch_mac_address = "02:00:00:00:AA:01";
         vm0.vswitch_layout = [{"mac_addr": "02:00:00:00:AA:02", "recv_id": 0, "send_id":1}];
-        vm0._priority = 105;
+
 
         vm1.num_extra_frame_caps = 0;
         vm1.extra_frame_map_address = 0;
@@ -98,45 +105,44 @@ assembly {
         vm1.simple_untyped12_pool = 12;
         vm1.vswitch_mac_address = "02:00:00:00:AA:02";
         vm1.vswitch_layout = [{"mac_addr": "02:00:00:00:AA:01", "recv_id": 0, "send_id":1}];
-        vm1._priority = 104;
+
 
         vm2.num_extra_frame_caps = 0;
         vm2.extra_frame_map_address = 0;
         vm2.cnode_size_bits = 19;
         vm2.simple_untyped21_pool = 12;
         vm2.simple_untyped12_pool = 12;
-        vm2._priority = 103;
+        vm2.vswitch_mac_address = "02:00:00:00:AA:03";
+
     
         /* VM0-VM1 Virtio-Net VirtQueue configurations */
-        vm0.vq_recv_id = 0;
-        vm0.vq_recv_shmem_size = 8192;
-        vm0.vq_send_id = 1;
-        vm0.vq_send_shmem_size = 8192;
+        vm0.virtqueue_receive_0_id = 0;
+        vm0.virtqueue_receive_0_shmem_size = VIRTQUEUE_SHMEM_SIZE;
+        vm0.virtqueue_send_0_id = 1;
+        vm0.virtqueue_send_0_shmem_size = VIRTQUEUE_SHMEM_SIZE;
 
-        vm1.vq_recv_id = 0;
-        vm1.vq_recv_shmem_size = 8192;
-        vm1.vq_send_id = 1;
-        vm1.vq_send_shmem_size = 8192;
+        vm1.virtqueue_receive_0_id = 0;
+        vm1.virtqueue_receive_0_shmem_size = VIRTQUEUE_SHMEM_SIZE;
+        vm1.virtqueue_send_0_id = 1;
+        vm1.virtqueue_send_0_shmem_size = VIRTQUEUE_SHMEM_SIZE;
 
         /* VirtQueue topology */
-        vnet_vq.init_topology = [{ "drv" : "vm0.vq_send", "dev" : "vm1.vq_recv"},
-                                 { "drv" : "vm1.vq_send", "dev" : "vm0.vq_recv"}];
+        vnet_virtqueue_init_vm0_vm1.init_topology = [{ "drv" : "vm0.virtqueue_send_0", "dev" : "vm1.virtqueue_receive_0"},
+                                                     { "drv" : "vm1.virtqueue_send_0", "dev" : "vm0.virtqueue_receive_0"}];
 
         /* VM0-VM2 Inter-VM */
-        vm0.ivm_buff0_id = 0;
-        vm0.ivm_buff0_size = 4096;
-        vm2.ivm_buff0_id = 0;
-        vm2.ivm_buff0_size = 4096;
+        vm0.crossvm_dp_0_id = 0;
+        vm0.crossvm_dp_0_size = CROSSVM_DP_SIZE;
+        vm0.crossvm_dp_0_hardware_cached = true;
+        vm0.crossvm_dp_1_id = 1;
+        vm0.crossvm_dp_1_size = CROSSVM_DP_SIZE;
+        vm0.crossvm_dp_1_hardware_cached = true;
 
-        vm0.ivm_buff0_hardware_cached = true;
-        vm2.ivm_buff0_hardware_cached = true;
-
-        vm0.ivm_buff1_id = 0;
-        vm0.ivm_buff1_size = 4096;
-        vm2.ivm_buff1_id = 0;
-        vm2.ivm_buff1_size = 4096;
-
-        vm0.ivm_buff1_hardware_cached = true;
-        vm2.ivm_buff1_hardware_cached = true;
+        vm2.crossvm_dp_0_id = 0;
+        vm2.crossvm_dp_0_size = CROSSVM_DP_SIZE;
+        vm2.crossvm_dp_0_hardware_cached = true;
+        vm2.crossvm_dp_1_id = 1;
+        vm2.crossvm_dp_1_size = CROSSVM_DP_SIZE;
+        vm2.crossvm_dp_1_hardware_cached = true;
     }
 }

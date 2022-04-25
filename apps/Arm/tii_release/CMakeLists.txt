@@ -59,90 +59,90 @@ set(rootfs_file_storage_vm     "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/roo
 
 #set(connection_module          "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux-modules/lib/modules/${linux_ver}/extra/connection.ko")
 
-# Prepare CrossVM connection module related stuff
-set(connection_module_name "connection.ko")
-set(connection_module_path "lib/modules/${linux_ver}/kernel/drivers/vmm")
-
-set(uio_module_name        "uio.ko")
-set(uio_module_src_path    "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux-modules/lib/modules/${linux_ver}/kernel/drivers/uio/uio.ko")
-set(uio_module_dest_path   "lib/modules/${linux_ver}/kernel/drivers/uio")
-
-# Prepare the Cross-VM scripts
-set(cross_vm_init_script_in    "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_init.sh.in")
-set(cross_vm_init_script       "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_init.sh")
-set(cross_vm_test_script       "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_test.sh")
-
-# Edit the correct Linux version
-# to init script and write the
-# result into a file
-execute_process(
-    COMMAND cat "${cross_vm_init_script_in}"
-    COMMAND sed -r "s|^([^#][a-zA-Z /]{1,}\\/)__LINUX_VERSION__(\\/.{1,})$|\\1${linux_ver}\\2|g"
-    COMMAND tee "${cross_vm_init_script}"
-    COMMAND chmod 0775 "${cross_vm_init_script}"
-)
-
-# Compile CrossVM connection module
-DefineLinuxModule(
-    ${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-modules/camkes-connector-modules/connection
-    connection_module
-    connection_module_target
-    KERNEL_DIR
-    ${linux_build_dir}
-    ARCH
-    ${linux_arch}
-    CROSS_COMPILE
-    ${linux_cross_compile}
-)
-
-
-# Compile CrossVM dataport apps
-ExternalProject_Add(
-    dataport-apps
-    URL
-    file:///${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-apps/camkes-connector-apps/pkgs/dataport
-    PREFIX
-    ${CMAKE_CURRENT_BINARY_DIR}/dataport-apps
-    INSTALL_COMMAND
-    ""
-    BUILD_ALWAYS
-    ON
-    EXCLUDE_FROM_ALL
-    CMAKE_ARGS
-    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-)
-
-# Compile CrossVM emit event app
-ExternalProject_Add(
-    emit-event-app
-    URL
-    file:///${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-apps/camkes-connector-apps/pkgs/emits_event
-    PREFIX
-    ${CMAKE_CURRENT_BINARY_DIR}/emit-event-app
-    INSTALL_COMMAND
-    ""
-    BUILD_ALWAYS
-    ON
-    EXCLUDE_FROM_ALL
-    CMAKE_ARGS
-    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-)
-
-# Compile CrossVM consume event app
-ExternalProject_Add(
-    consume-event-app
-    URL
-    file:///${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-apps/camkes-connector-apps/pkgs/consumes_event
-    PREFIX
-    ${CMAKE_CURRENT_BINARY_DIR}/consume-event-app
-    INSTALL_COMMAND
-    ""
-    BUILD_ALWAYS
-    ON
-    EXCLUDE_FROM_ALL
-    CMAKE_ARGS
-    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-)
+## Prepare CrossVM connection module related stuff
+#set(connection_module_name "connection.ko")
+#set(connection_module_path "lib/modules/${linux_ver}/kernel/drivers/vmm")
+#
+#set(uio_module_name        "uio.ko")
+#set(uio_module_src_path    "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux-modules/lib/modules/${linux_ver}/kernel/drivers/uio/uio.ko")
+#set(uio_module_dest_path   "lib/modules/${linux_ver}/kernel/drivers/uio")
+#
+## Prepare the Cross-VM scripts
+#set(cross_vm_init_script_in    "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_init.sh.in")
+#set(cross_vm_init_script       "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_init.sh")
+#set(cross_vm_test_script       "${CMAKE_CURRENT_SOURCE_DIR}/overlay_files/cross_vm_test.sh")
+#
+## Edit the correct Linux version
+## to init script and write the
+## result into a file
+#execute_process(
+#    COMMAND cat "${cross_vm_init_script_in}"
+#    COMMAND sed -r "s|^([^#][a-zA-Z /]{1,}\\/)__LINUX_VERSION__(\\/.{1,})$|\\1${linux_ver}\\2|g"
+#    COMMAND tee "${cross_vm_init_script}"
+#    COMMAND chmod 0775 "${cross_vm_init_script}"
+#)
+#
+## Compile CrossVM connection module
+#DefineLinuxModule(
+#    ${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-modules/camkes-connector-modules/connection
+#    connection_module
+#    connection_module_target
+#    KERNEL_DIR
+#    ${linux_build_dir}
+#    ARCH
+#    ${linux_arch}
+#    CROSS_COMPILE
+#    ${linux_cross_compile}
+#)
+#
+#
+## Compile CrossVM dataport apps
+#ExternalProject_Add(
+#    dataport-apps
+#    URL
+#    file:///${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-apps/camkes-connector-apps/pkgs/dataport
+#    PREFIX
+#    ${CMAKE_CURRENT_BINARY_DIR}/dataport-apps
+#    INSTALL_COMMAND
+#    ""
+#    BUILD_ALWAYS
+#    ON
+#    EXCLUDE_FROM_ALL
+#    CMAKE_ARGS
+#    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+#)
+#
+## Compile CrossVM emit event app
+#ExternalProject_Add(
+#    emit-event-app
+#    URL
+#    file:///${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-apps/camkes-connector-apps/pkgs/emits_event
+#    PREFIX
+#    ${CMAKE_CURRENT_BINARY_DIR}/emit-event-app
+#    INSTALL_COMMAND
+#    ""
+#    BUILD_ALWAYS
+#    ON
+#    EXCLUDE_FROM_ALL
+#    CMAKE_ARGS
+#    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+#)
+#
+## Compile CrossVM consume event app
+#ExternalProject_Add(
+#    consume-event-app
+#    URL
+#    file:///${CAMKES_VM_LINUX_DIR}/camkes-linux-artifacts/camkes-linux-apps/camkes-connector-apps/pkgs/consumes_event
+#    PREFIX
+#    ${CMAKE_CURRENT_BINARY_DIR}/consume-event-app
+#    INSTALL_COMMAND
+#    ""
+#    BUILD_ALWAYS
+#    ON
+#    EXCLUDE_FROM_ALL
+#    CMAKE_ARGS
+#    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+#)
 
 # Setup User VM overlay
 
@@ -162,65 +162,65 @@ AddFileToOverlayDir(
     overlay_user_vm
 )
 
-# Add CrossVM dataport apps
-AddExternalProjFilesToOverlay(
-    dataport-apps
-    ${CMAKE_CURRENT_BINARY_DIR}/dataport-apps/src/dataport-apps-build
-    overlay_user_vm
-    "usr/bin"
-    FILES
-    dataport_read
-    dataport_write
-)
-
-# Add CrossVM emit event app
-AddExternalProjFilesToOverlay(
-    emit-event-app
-    ${CMAKE_CURRENT_BINARY_DIR}/emit-event-app/src/emit-event-app-build
-    overlay_user_vm
-    "usr/bin"
-    FILES
-    emits_event_emit
-)
-
-# Add CrossVM consume event app
-AddExternalProjFilesToOverlay(
-    consume-event-app
-    ${CMAKE_CURRENT_BINARY_DIR}/consume-event-app/src/consume-event-app-build
-    overlay_user_vm
-    "usr/bin"
-    FILES
-    consumes_event_wait
-)
-
-# Add UIO and CrossVM connection modules,
-# and init/test scripts
-AddFileToOverlayDir(
-    "${uio_module_name}"
-    "${uio_module_src_path}"
-    "${uio_module_dest_path}"
-    overlay_user_vm
-)
-AddFileToOverlayDir(
-    "${connection_module_name}"
-    "${connection_module}"
-    "${connection_module_path}"
-    overlay_user_vm
-    DEPENDS
-    connection_module_target
-)
-AddFileToOverlayDir(
-    "S91cross_vm_init"
-    ${cross_vm_init_script}
-    "etc/init.d"
-    overlay_user_vm
-)
-AddFileToOverlayDir(
-    "S92cross_vm_test"
-    ${cross_vm_test_script}
-    "etc/init.d"
-    overlay_user_vm
-)
+## Add CrossVM dataport apps
+#AddExternalProjFilesToOverlay(
+#    dataport-apps
+#    ${CMAKE_CURRENT_BINARY_DIR}/dataport-apps/src/dataport-apps-build
+#    overlay_user_vm
+#    "usr/bin"
+#    FILES
+#    dataport_read
+#    dataport_write
+#)
+#
+## Add CrossVM emit event app
+#AddExternalProjFilesToOverlay(
+#    emit-event-app
+#    ${CMAKE_CURRENT_BINARY_DIR}/emit-event-app/src/emit-event-app-build
+#    overlay_user_vm
+#    "usr/bin"
+#    FILES
+#    emits_event_emit
+#)
+#
+## Add CrossVM consume event app
+#AddExternalProjFilesToOverlay(
+#    consume-event-app
+#    ${CMAKE_CURRENT_BINARY_DIR}/consume-event-app/src/consume-event-app-build
+#    overlay_user_vm
+#    "usr/bin"
+#    FILES
+#    consumes_event_wait
+#)
+#
+## Add UIO and CrossVM connection modules,
+## and init/test scripts
+#AddFileToOverlayDir(
+#    "${uio_module_name}"
+#    "${uio_module_src_path}"
+#    "${uio_module_dest_path}"
+#    overlay_user_vm
+#)
+#AddFileToOverlayDir(
+#    "${connection_module_name}"
+#    "${connection_module}"
+#    "${connection_module_path}"
+#    overlay_user_vm
+#    DEPENDS
+#    connection_module_target
+#)
+#AddFileToOverlayDir(
+#    "S91cross_vm_init"
+#    ${cross_vm_init_script}
+#    "etc/init.d"
+#    overlay_user_vm
+#)
+#AddFileToOverlayDir(
+#    "S92cross_vm_test"
+#    ${cross_vm_test_script}
+#    "etc/init.d"
+#    overlay_user_vm
+#)
 
 # Smush the overlay on the rootfs
 AddOverlayDirToRootfs(
@@ -276,65 +276,65 @@ AddFileToOverlayDir(
     overlay_storage_vm
 )
 
-# Add CrossVM dataport apps
-AddExternalProjFilesToOverlay(
-    dataport-apps
-    ${CMAKE_CURRENT_BINARY_DIR}/dataport-apps/src/dataport-apps-build
-    overlay_storage_vm
-    "usr/bin"
-    FILES
-    dataport_read
-    dataport_write
-)
-
-# Add CrossVM emit event app
-AddExternalProjFilesToOverlay(
-    emit-event-app
-    ${CMAKE_CURRENT_BINARY_DIR}/emit-event-app/src/emit-event-app-build
-    overlay_storage_vm
-    "usr/bin"
-    FILES
-    emits_event_emit
-)
-
-# Add CrossVM consume event app
-AddExternalProjFilesToOverlay(
-    consume-event-app
-    ${CMAKE_CURRENT_BINARY_DIR}/consume-event-app/src/consume-event-app-build
-    overlay_storage_vm
-    "usr/bin"
-    FILES
-    consumes_event_wait
-)
-
-# Add UIO and CrossVM connection modules,
-# and init/test scripts
-AddFileToOverlayDir(
-    "${uio_module_name}"
-    "${uio_module_src_path}"
-    "${uio_module_dest_path}"
-    overlay_storage_vm
-)
-AddFileToOverlayDir(
-    "${connection_module_name}"
-    "${connection_module}"
-    "${connection_module_path}"
-    overlay_storage_vm
-    DEPENDS
-    connection_module_target
-)
-AddFileToOverlayDir(
-    "S91cross_vm_init"
-    ${cross_vm_init_script}
-    "etc/init.d"
-    overlay_storage_vm
-)
-AddFileToOverlayDir(
-    "S92cross_vm_test"
-    ${cross_vm_test_script}
-    "etc/init.d"
-    overlay_storage_vm
-)
+## Add CrossVM dataport apps
+#AddExternalProjFilesToOverlay(
+#    dataport-apps
+#    ${CMAKE_CURRENT_BINARY_DIR}/dataport-apps/src/dataport-apps-build
+#    overlay_storage_vm
+#    "usr/bin"
+#    FILES
+#    dataport_read
+#    dataport_write
+#)
+#
+## Add CrossVM emit event app
+#AddExternalProjFilesToOverlay(
+#    emit-event-app
+#    ${CMAKE_CURRENT_BINARY_DIR}/emit-event-app/src/emit-event-app-build
+#    overlay_storage_vm
+#    "usr/bin"
+#    FILES
+#    emits_event_emit
+#)
+#
+## Add CrossVM consume event app
+#AddExternalProjFilesToOverlay(
+#    consume-event-app
+#    ${CMAKE_CURRENT_BINARY_DIR}/consume-event-app/src/consume-event-app-build
+#    overlay_storage_vm
+#    "usr/bin"
+#    FILES
+#    consumes_event_wait
+#)
+#
+## Add UIO and CrossVM connection modules,
+## and init/test scripts
+#AddFileToOverlayDir(
+#    "${uio_module_name}"
+#    "${uio_module_src_path}"
+#    "${uio_module_dest_path}"
+#    overlay_storage_vm
+#)
+#AddFileToOverlayDir(
+#    "${connection_module_name}"
+#    "${connection_module}"
+#    "${connection_module_path}"
+#    overlay_storage_vm
+#    DEPENDS
+#    connection_module_target
+#)
+#AddFileToOverlayDir(
+#    "S91cross_vm_init"
+#    ${cross_vm_init_script}
+#    "etc/init.d"
+#    overlay_storage_vm
+#)
+#AddFileToOverlayDir(
+#    "S92cross_vm_test"
+#    ${cross_vm_test_script}
+#    "etc/init.d"
+#    overlay_storage_vm
+#)
 
 # Smush the overlay on the rootfs
 AddOverlayDirToRootfs(
@@ -390,8 +390,8 @@ DefineCAmkESVMFileServer()
 # dataport buffer handles, and the linker
 # will fail trying to find them.
 #
-DeclareCAmkESComponent(VM_instance_vm0 SOURCES src/shared_memory.c)
-DeclareCAmkESComponent(VM_instance_vm2 SOURCES src/shared_memory.c)
+#DeclareCAmkESComponent(VM_instance_vm0 SOURCES src/shared_memory.c)
+#DeclareCAmkESComponent(VM_instance_vm2 SOURCES src/shared_memory.c)
 
 CAmkESAddImportPath(${CMAKE_CURRENT_SOURCE_DIR}/${KernelARMPlatform})
 

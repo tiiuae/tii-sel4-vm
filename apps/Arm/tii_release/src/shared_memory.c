@@ -21,6 +21,9 @@
 #ifdef CONFIG_PLAT_QEMU_ARM_VIRT
 #define CONNECTION_BASE_ADDRESS_BUFF0 0xDF000000
 #define CONNECTION_BASE_ADDRESS_BUFF1 0xDF001000
+#elif CONFIG_PLAT_BCM2711
+#define CONNECTION_BASE_ADDRESS_BUFF0 0x60000000
+#define CONNECTION_BASE_ADDRESS_BUFF1 0x60001000
 #else
 #define CONNECTION_BASE_ADDRESS_BUFF0 0x3F000000
 #define CONNECTION_BASE_ADDRESS_BUFF1 0x3F001000
@@ -41,8 +44,8 @@ struct camkes_shared_memory_connection {
 };
 
 // these are defined in the dataport's glue code
-extern dataport_caps_handle_t ivm_buff0_handle;
-extern dataport_caps_handle_t ivm_buff1_handle;
+extern dataport_caps_handle_t crossvm_dp_0_handle;
+extern dataport_caps_handle_t crossvm_dp_1_handle;
 
 static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
 {
@@ -98,14 +101,14 @@ void init_shared_memory(vm_t *vm, void *cookie)
     int err;
 
     // BUFF 0
-    err = init_dataport(vm, ivm_buff0_handle, CONNECTION_BASE_ADDRESS_BUFF0);
+    err = init_dataport(vm, crossvm_dp_0_handle, CONNECTION_BASE_ADDRESS_BUFF0);
     if (err){
         ZF_LOGE("Failed to init dataport");
         return -1;
     }
 
     // BUFF 1
-    err = init_dataport(vm, ivm_buff1_handle, CONNECTION_BASE_ADDRESS_BUFF1);
+    err = init_dataport(vm, crossvm_dp_1_handle, CONNECTION_BASE_ADDRESS_BUFF1);
     if (err){
         ZF_LOGE("Failed to init dataport");
         return -1;
