@@ -67,7 +67,7 @@ assembly {
             "initrd_addr" : VAR_STRINGIZE(VM1_INITRD_ADDR),
         };
         vm1.linux_image_config = {
-            "linux_bootcmdline" : "console=hvc0 earlycon=hvc0 root=/dev/vda rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
+            "linux_bootcmdline" : "console=hvc0 earlycon=hvc0 root=/dev/vda2 rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
             "linux_stdout" : "hvc0",
             "dtb_name" : "",
         };
