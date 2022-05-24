@@ -6,6 +6,7 @@
  */
 
 #include <configurations/vm.h>
+#include <vm-qemu.h>
 
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
@@ -18,7 +19,7 @@ import <vm-connectors.camkes>;
 import <devices.camkes>;
 
 component VM {
-    VM_INIT_DEF()
+    VM_QEMU_INIT_DEF()
 
     emits    QemuReqAck intervm_source;
     consumes QemuReqAck intervm_sink;
@@ -48,8 +49,8 @@ assembly {
     }
     configuration {
         VM_GENERAL_CONFIGURATION_DEF()
-        VM_CONFIGURATION_DEF(0)
-        VM_CONFIGURATION_DEF(1)
+        VM_QEMU_CONFIGURATION_DEF(0)
+        VM_QEMU_CONFIGURATION_DEF(1)
 
         vm0.num_extra_frame_caps = 0;
         vm0.extra_frame_map_address = 0;
