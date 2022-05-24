@@ -1,3 +1,8 @@
+/*
+ * Copyright 2022, Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include <configurations/vm.h>
 
 #define VM_RAM_OFFSET 0
@@ -14,9 +19,8 @@
 #define VM1_INITRD_ADDR 0x4D000000 //VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 
 assembly {
-	composition {}
-	configuration {
-
+    composition {}
+    configuration {
         vm_memdev.paddr = VM1_RAM_BASE;
         vm_memdev.size = VM1_RAM_SIZE;
 
@@ -42,8 +46,8 @@ assembly {
             "linux_stdout" : "/soc/serial@7e215040",
             "dtb_name" : "",
         };
-	vm0.mmios = [
-	     "0xff846000:0x1000:12"
+        vm0.mmios = [
+            "0xff846000:0x1000:12"
         ];
         vm0.untyped_mmios = [
             "0x40000000:27"  //RAM
@@ -71,10 +75,10 @@ assembly {
             "linux_stdout" : "hvc0",
             "dtb_name" : "",
         };
-	vm1.mmios = [
-	    "0xff846000:0x1000:12"
+        vm1.mmios = [
+            "0xff846000:0x1000:12"
         ];
-	/* Note that RAM is not specified here */
+        /* Note that RAM is not specified here */
         vm1.irqs =  [];
         vm1.dtb = dtb([{}]);
     }
