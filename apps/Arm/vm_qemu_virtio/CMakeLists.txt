@@ -23,6 +23,8 @@ CAmkESAddImportPath(${KernelARMPlatform})
 
 DeclareCAmkESComponent(VM SOURCES src/cross_vm_connection.c src/init_dataport_ram.c src/qemu.c)
 
+CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
+
 # Declare root server
 DeclareCAmkESRootserver(
     vm_qemu_virtio.camkes
