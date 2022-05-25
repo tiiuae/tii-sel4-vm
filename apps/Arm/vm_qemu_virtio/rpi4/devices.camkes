@@ -8,10 +8,10 @@
 #define VM_RAM_OFFSET 0
 #define VM_INITRD_MAX_SIZE 0x2000000 //32 MB
 
-#define VM0_RAM_BASE 0x40000000
-#define VM0_RAM_SIZE 0x08000000
-#define VM0_DTB_ADDR 0x47000000 //VM0_RAM_BASE + 0x7000000
-#define VM0_INITRD_ADDR 0x45000000 //VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM0_RAM_BASE 0x10000000
+#define VM0_RAM_SIZE 0x10000000
+#define VM0_DTB_ADDR 0x1F000000
+#define VM0_INITRD_ADDR 0x1D000000 //VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
 
 #define VM1_RAM_BASE 0x48000000
 #define VM1_RAM_SIZE 0x08000000
@@ -42,7 +42,7 @@ assembly {
         };
         vm0.num_vcpus = 1;
         vm0.linux_image_config = {
-            "linux_bootcmdline" : "console=ttyS0,115200 earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 pci=nomsi initcall_blacklist=clk_disable_unused nosmp",
+            "linux_bootcmdline" : "console=ttyS0,115200 earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 pci=nomsi initcall_blacklist=clk_disable_unused nosmp cma=32MB",
             "linux_stdout" : "/soc/serial@7e215040",
             "dtb_name" : "",
         };
@@ -50,7 +50,7 @@ assembly {
             "0xff846000:0x1000:12"
         ];
         vm0.untyped_mmios = [
-            "0x40000000:27"  //RAM
+            "0x10000000:28"  //RAM
         ];
         vm0.irqs =  [];
         vm0.dtb = dtb([
@@ -58,7 +58,30 @@ assembly {
             { "path": "/soc/serial@7e215040" },
             { "path": "/soc/cprman@7e101000" },
             { "path": "/soc/gpio@7e200000" },
-            { "path": "/scb/ethernet@7d580000" }
+            { "path": "/scb/ethernet@7d580000" },
+            // Communication to VC
+            { "path": "/soc/mailbox@7e00b880" },
+            { "path": "/soc/firmware" },
+            // Required by HDMI driver
+            { "path": "/soc/dma-ranges" },
+            { "path": "/soc/dma@7e007000" },
+            { "path": "/soc/interrupt-controller@7ef00100" },
+            // HDMI0
+            { "path": "/soc/hdmi@7ef00700" },
+            { "path": "/soc/i2c@7ef04500" },
+            { "path": "/soc/pixelvalve@7e20a000" },
+            // HDMI1
+            { "path": "/soc/hdmi@7ef05700" },
+            { "path": "/soc/i2c@7ef09500" },
+            { "path": "/soc/pixelvalve@7e216000" },
+            // GPU
+            { "path": "/soc/hvs@7e400000" },
+            { "path": "/soc/txp@7e004000" },
+            { "path": "/gpu" },
+            // Required by 3D acceleration
+            { "path": "/soc/cprman@7e101000" },
+            { "path": "/soc/watchdog@7e100000" },
+            { "path": "/v3dbus/v3d@7ec04000" },
         ]);
 
         vm1.linux_address_config = {
