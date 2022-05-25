@@ -23,4 +23,11 @@ if("${PLATFORM}" STREQUAL "qemu-arm-virt")
     set(qemu_sim_extra_args "-netdev tap,id=mynet0,ifname=tap0,script=no,downscript=no -device virtio-net,netdev=mynet0,mac=52:55:00:d1:55:01")
     set(KernelArmExportPCNTUser ON CACHE BOOL "" FORCE)
     set(KernelArmExportPTMRUser ON CACHE BOOL "" FORCE)
+elseif("${PLATFORM}" STREQUAL "rpi4")
+    set(KernelCustomDTS
+        "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/dts/rpi4.dts"
+        CACHE FILEPATH "" FORCE)
+    set(KernelCustomDTSOverlay
+        "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/dts/overlay-rpi4.dts"
+        CACHE FILEPATH "" FORCE)
 endif()
