@@ -42,7 +42,11 @@ assembly {
         };
         vm0.num_vcpus = 1;
         vm0.linux_image_config = {
-            "linux_bootcmdline" : "console=ttyS0,115200 earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 pci=nomsi initcall_blacklist=clk_disable_unused nosmp cma=32MB",
+            "linux_bootcmdline" : "console=ttyS0,115200 \
+                earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 \
+                root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 \
+                pci=nomsi initcall_blacklist=clk_disable_unused nosmp \
+                cma=64M",
             "linux_stdout" : "/soc/serial@7e215040",
             "dtb_name" : "",
         };
