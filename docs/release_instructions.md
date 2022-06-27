@@ -126,6 +126,7 @@ $ cp vm-images/build/tmp/deploy/images/vm-raspberrypi4-64/Image \
 Build supported seL4 reference images:
 
 ```bash
+$ make rpi4_defconfig
 $ make vm_minimal
 $ make vm_multi
 $ make sel4test
@@ -134,7 +135,7 @@ $ make sel4test
 Build supported TII seL4 images:
 
 ```bash
-$ make tii_release
+$ make vm_qemu_virtio
 ```
 
 Collect artifacts:
@@ -150,7 +151,7 @@ $ declare -A targets=(
     ["rpi4_vm_minimal/images/capdl-loader-image-arm-bcm2711"]=rpi4_vm_minimal
     ["rpi4_vm_multi/images/capdl-loader-image-arm-bcm2711"]=rpi4_vm_multi
     ["rpi4_sel4test/images/sel4test-driver-image-arm-bcm2711"]=rpi4_sel4test
-    ["rpi4_tii_release/images/capdl-loader-image-arm-bcm2711"]=rpi4_tii_release
+    ["rpi4_vm_qemu_virtio/images/capdl-loader-image-arm-bcm2711"]=rpi4_vm_qemu_virtio
     )
 $ for target in "${!targets[@]}"; do
     cp "$target" "${TII_SEL4_RELEASE}/bin/boot/${targets[$target]}"
@@ -167,14 +168,14 @@ $ for target in "${yocto_targets[@]}"; do
 $ declare yocto_boot_targets=(
     "u-boot.bin"
     "bcm2711-rpi-4-b.dtb"
-    "bootfiles/bootcode.bin"
-    "bootfiles/start4.elf"
-    "bootfiles/fixup4.dat"
+    "bootcode.bin"
+    "start4.elf"
+    "fixup4.dat"
+    "config.txt"
     )
 $ for target in "${yocto_boot_targets[@]}"; do
-    cp vm-images/build/tmp/deploy/images/vm-raspberrypi4-64/$target "${TII_SEL4_RELEASE}/bin/boot/"
+    cp tii_sel4_build/hardware/rpi4/$target "${TII_SEL4_RELEASE}/bin/boot/"
   done
-$ cp tii_sel4_build/hardware/rpi4/config.txt "${TII_SEL4_RELEASE}/bin/boot"
 ```
 
 ## Prepare Release Documentation
@@ -195,21 +196,21 @@ must be tested against per image release test suite described in this chapter.
 
 ### Testing `vm_minimal`
 
-Follow release document run instructions. The VM should boot up and be
+Follow the release document run instructions. The VM should boot up and be
 responsive.
 
 ### Testing `vm_multi`
 
-Follow release document run instructions. The all three VMs should boot up and
+Follow the release document run instructions. The all three VMs should boot up and
 be responsive.
 
 ### Testing `sel4test`
 
-Follow release document run instructions. All tests should pass.
+Follow the release document run instructions. All tests should pass.
 
-### Testing `tii_release`
+### Testing `vm_qemu_virtio`
 
-Follow release document run instructions.
+Follow the release document run instructions.
 
 Ensure that:
 * All VMs are running and responsive (via serial connection)

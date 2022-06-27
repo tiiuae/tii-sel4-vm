@@ -218,27 +218,36 @@ Test suite passed. 129 tests passed. 41 tests disabled.
 All is well in the universe
 ```
 
-### `tii_release`
+### `vm_qemu_virtio`
 
-The `tii_release` image forms a system where VMs are isolated per function.
-The VMs provide system with multiplexed access to HW resources as a service,
-such as network connectivity, or consume services provided by other VMs for
-example to provide user facing application or functionality.
-
-Currently `tii_release` provides three VMs:
-* User VM
-* Connection VM
-* Storage VM
+The `vm_qemu_virtio` demonstrates a system which uses QEMU as a virtio
+backend device. The system consists of two VMs, where one provides virtio
+devices, and the other consumes them to provide user facing application or
+functionality.
 
 Power on the device, and interrupt `u-boot` auto-boot by pressing any key. In
 u-boot shell, type following commands:
 
 ```text
 Hit any key to stop autoboot:  0
-U-Boot> setenv sel4_bootfile=rpi4_sel4test
+U-Boot> setenv sel4_bootfile=rpi4_vm_qemu_virtio
 U-Boot> boot
 ...
 ```
 
-Switch between VMs with `@<number>`. The VM can be identified with console
-prompt.
+After the device VM has booted up, the application VM can be started with:
+
+```sh
+$ # without gui
+$ qemu-sel4
+$ # with gui
+$ qemu-sel4-gui
+```
+
+`screen` can be used to switch between the device-vm and application-vm:
+
+```sh
+$ screen -t device-vm /bin/sh
+$ # run app-vm. Switch back to device-vm with <C-A><C-A>
+$ screen -t app-vm /usr/bin/qemu-sel4-gui
+```
