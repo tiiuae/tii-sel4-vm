@@ -21,6 +21,7 @@
 #include <pci/helper.h>
 
 #include "sel4-qemu.h"
+#include "trace.h"
 
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>
@@ -51,17 +52,26 @@ static void intervm_callback(void *opaque);
 
 static vmm_pci_config_t make_qemu_pci_config(void *cookie);
 
+static void wait_for_host_qemu(void);
+
 static vm_t *vm;
 
-void qemu_initialize_semaphores(vm_t *_vm)
+int is_driver_vm(unsigned long linux_ram_base)
 {
-    vm = _vm;
+    return linux_ram_base != 0x48000000;
+}
 
-    if (linux_ram_base != 0x48000000) {
-        ZF_LOGI("Skipping QEMU module initialization on driver VM.");
-        return;
-    }
+static void driver_pre_load_linux(void)
+{
+    /* log area not used currently but clear it anyway */
+    extern void *ctrl;
+    memset(((char *)ctrl) + 3072, 0, 4 * sizeof(uint32_t));
 
+    trace_init(vm);
+}
+
+static void user_pre_load_linux(void)
+{
     if (sync_sem_new(&_vka, &handoff, 0)) {
         ZF_LOGF("Unable to allocate handoff semaphore");
     }
@@ -69,14 +79,29 @@ void qemu_initialize_semaphores(vm_t *_vm)
         ZF_LOGF("Unable to allocate handoff semaphore");
     }
 
-    ZF_LOGI("handoff EP: %"SEL4_PRIx_word"\n", handoff.ep.cptr);
-    ZF_LOGI("qemu_started EP: %"SEL4_PRIx_word"\n", qemu_started.ep.cptr);
-
     if (intervm_sink_reg_callback(intervm_callback, ctrl)) {
         ZF_LOGF("Problem registering intervm sink callback");
     }
 
-    ZF_LOGI("Initialized communication with QEMU");
+    /* load_linux() eventually calls fdt_generate_vpci_node(), which
+     * will block unless QEMU is already running in the driver VM.
+     * Therefore we will need to listen to start signal here before
+     * proceeding to load_linux() in VM_Arm.
+     */
+    ZF_LOGI("waiting for driver QEMU");
+    wait_for_host_qemu();
+    ZF_LOGI("driver QEMU up, continuing");
+}
+
+void hook_pre_load_linux(vm_t *_vm)
+{
+    vm = _vm;
+
+    if (is_driver_vm(linux_ram_base)){
+        driver_pre_load_linux();
+    } else {
+        user_pre_load_linux();
+    }
 }
 
 typedef struct virtio_qemu {
@@ -209,7 +234,7 @@ static void intervm_callback(void *opaque)
     }
 }
 
-void wait_for_host_qemu(void)
+static void wait_for_host_qemu(void)
 {
     // camkes_protect_reply_cap() ??
     /* TODO: in theory it should be enough to wait for the semaphore
