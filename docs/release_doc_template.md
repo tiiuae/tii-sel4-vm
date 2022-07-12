@@ -115,6 +115,130 @@ U-Boot> saveenv
 This sets u-boot `rpi4_vm_minimal` the default boot target. Other images can
 be booted with `setenv sel4_bootfile <image>`.
 
+#### WIP: Preparing SD-card for qemu_virtio target with rootfs
+
+Edit `apps/Arm/vm_qemu_virtio/rpi4/devices.camkes` and 
+rebuld rpi4_vm_qemu_virtio with SD card as main boot device 
+and pass MMC to driver-vm:
+
+```diff
+         vm0.linux_image_config = {
+             "linux_bootcmdline" : "console=ttyS0,115200 \
+                 earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 \
+-                root=/dev/nfs rootfstype=nfs ip=dhcp rw debug loglevel=7 \
++                ip=dhcp rw debug loglevel=7 \
++                root=/dev/mmcblk0p2 rootwait rw \
+
+....
+
++            // SD-MMC card
++            { "path": "/emmc2bus" },
++            { "path": "/emmc2bus/mmc@7e340000" },
+```
+
+In case if RPi4 is not able initialize mmc0 card after those manipulation
+with following errors:
+
+```
+[   44.351173] mmc0: error -5 whilst initialising SD card                                      
+[   44.426990] mmc0: ADMA error: 0x02000000                                                    
+[   44.431314] mmc0: error -5 whilst initialising SD card                                      
+[   44.511985] mmc0: ADMA error: 0x02000000
+```
+
+Please fix DTS file according this ticket: [HYPR-441](https://ssrc.atlassian.net/browse/HYPR-441)
+
+Create file boot system image, loop mount and copy boot files:
+
+```bash
+$ export IMAGE_SIZE=2048 # Your image size here
+$ export BOOT_SIZE=255   # Your boot partitio size here
+
+# Create dummy .img file with size $IMAGE_SIZE
+$ dd if=/dev/zero of=sel4_disk.img bs=1M count=$IMAGE_SIZE
+
+# Create partitions: boot with $BOOT_SIZE size and rootfs with all rest space
+$ parted sel4_disk.img -a optimal -s mklabel msdos -- mkpart primary fat32 4MiB ${BOOT_SIZE}MiB mkpart primary ext4 ${BOOT_SIZE}MiB -1MiB
+
+# Add .img as loop device
+$ sudo losetup -f --show -P sel4_disk.img
+/dev/loop<number>
+
+# Create fat32 FS boot on boot partition
+$ sudo mkfs.fat -F 32 -n BOOT /dev/loop<number>p1
+# Create ext4 FS on rootfs partition
+$ sudo mkfs.ext4 /dev/loop24p2
+
+# Create mount dirs
+$ mkdir boot
+$ mkdir rootfs
+
+# Mount boot and rootfs partitions
+$ sudo mount -t auto -o loop /dev/loop<number>p1 boot/
+$ sudo mount -t auto -o loop /dev/loop<number>p2 rootfs/
+
+# Copy U-Boot files into boot partition
+$ sudo cp bcm2711-rpi-4-b.dtb boot/
+$ sudo cp bootcode.bin boot/
+$ start4.elf
+
+# Create config.txt file and configure boot options
+$ sudo touch boot/config.txt
+$ sudo echo "enable_uart=1" > boot/config.txt
+$ sudo echo "arm_64bit=1" >> boot/config.txt
+$ sudo echo "kernel=u-boot.bin" >> boot/config.txt
+
+# Copy seL4 kernel image to boot
+$ sudo cp rpi4_vm_qemu_virtio/images/capdl-loader-image-arm-bcm2711 boot/rpi4_vm_qemu_virtio
+# Extract rootfs to rootfs
+$ sudo tar -C rootfs/ -xjpvf vm-images/build/tmp/deploy/images/vm-raspberrypi4-64/vm-image-driver-gui-vm-raspberrypi4-64.tar.bz2
+
+# Unmout partitions
+$ sudo umount boot/
+$ sudo umount rootfs/
+
+# Remove loop device
+$ sudo losetup -d /dev/loop<number>
+```
+
+Insert micro SD-card to reader and write the disk image:
+
+```bash
+$ lsblk # list block devices
+$ dd if=sel4_disk.img of=/dev/<mmc device> bs=1M
+```
+
+Boot the board for the first time, and enter following commands:
+
+```text
+U-Boot> setenv sel4_bootfile rpi4_vm_qemu_virtio
+U-Boot> setenv sel4_bootcmd_mmc 'fatload mmc 0 ${loadaddr} ${sel4_bootfile}; bootelf ${loadaddr}'
+U-Boot> setenv bootcmd 'run sel4_bootcmd_mmc'
+U-Boot> saveenv
+```
+
+This sets u-boot `rpi4_vm_qemu_virtio` the default boot target. Other images can
+be booted with `setenv sel4_bootfile <image>`.
+
+Insert micro SD-card to reader and write the disk image:
+
+```bash
+$ lsblk # list block devices
+$ dd if=sel4_disk.img of=/dev/<mmc device> bs=1M
+```
+
+Boot the board for the first time, and enter following commands:
+
+```text
+U-Boot> setenv sel4_bootfile rpi4_vm_minimal
+U-Boot> setenv sel4_bootcmd_mmc 'fatload mmc 0 ${loadaddr} ${sel4_bootfile}; bootelf ${loadaddr}'
+U-Boot> setenv bootcmd 'run sel4_bootcmd_mmc'
+U-Boot> saveenv
+```
+
+This sets u-boot `rpi4_vm_minimal` the default boot target. Other images can
+be booted with `setenv sel4_bootfile <image>`.
+
 #### Preparing NFS server to serve rootfs
 
 Either unpack, or loop mount image's rootfs to a path NFS server is serving,
