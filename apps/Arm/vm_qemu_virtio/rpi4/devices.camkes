@@ -63,6 +63,12 @@ assembly {
             { "path": "/soc/serial@7e215040" },
             { "path": "/soc/cprman@7e101000" },
             { "path": "/soc/gpio@7e200000" },
+            // UART 0 pinctrl
+            /*
+            { "path": "/soc/gpio@7e200000/bt_pins" },
+            { "path": "/soc/gpio@7e200000/uart0_pins" },
+            { "path": "/soc/gpio@7e200000/uart0_gpio14" },
+            */
             { "path": "/scb/ethernet@7d580000" },
             // Communication to VC
             { "path": "/soc/mailbox@7e00b880" },
