@@ -18,3 +18,9 @@ set(VmVirtioNetArping OFF CACHE BOOL "" FORCE)
 set(VmVirtioNetVirtqueue OFF CACHE BOOL "" FORCE)
 set(VmInitRdFile ON CACHE BOOL "" FORCE)
 set(VmDtbFile OFF CACHE BOOL "" FORCE)
+set(KernelCustomDTS
+  "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/dts/rpi4.dts"
+  CACHE FILEPATH "" FORCE)
+set(KernelCustomDTSOverlay
+  "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/dts/overlay-rpi4.dts"
+  CACHE FILEPATH "" FORCE)
