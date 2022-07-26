@@ -29,8 +29,12 @@ assembly {
         };
 
         vm0.linux_image_config = {
+            // UART 1
             "linux_bootcmdline" : "console=ttyS0,115200 earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 rw debug loglevel=7 pci=nomsi initcall_debug initcall_blacklist=clk_disable_unused",
             "linux_stdout" : "/soc/serial@7e215040",
+            // UART 0 
+            // "linux_bootcmdline" : "console=ttyAMA0,115200 earlycon=pl011,mmio32,0xfe201000 8250.nr_uarts=0 rw debug loglevel=7 pci=nomsi initcall_debug initcall_blacklist=clk_disable_unused",
+            // "linux_stdout" : "/soc/serial@7e201000",
             "dtb_name" : "",
             "initrd_name" : "linux-initrd"
         };
@@ -38,9 +42,15 @@ assembly {
         vm0.dtb = dtb([
             { "path": "/scb/ethernet@7d580000" },
             { "path": "/soc/mailbox@7e00b880" },
-            { "path": "/soc/serial@7e215040" },
             { "path": "/soc/cprman@7e101000" },
             { "path": "/soc/gpio@7e200000" },
+            // UART 1
+            { "path": "/soc/serial@7e215040" },
+            // UART 0
+            // { "path": "/soc/serial@7e201000" },
+            // { "path": "/soc/gpio@7e200000/bt_pins" },
+            // { "path": "/soc/gpio@7e200000/uart0_pins" },
+            // { "path": "/soc/gpio@7e200000/uart0_gpio14" },
         ]);
 
         vm0.untyped_mmios = [

@@ -30,7 +30,7 @@ null::sysinit:/bin/ln -sf /proc/self/fd/2 /dev/stderr
 ::sysinit:/etc/init.d/rcS
 
 # Put a getty on the serial port
-hvc0:2345:respawn:/sbin/getty -L 9600 hvc0
+hvc0:12345:respawn:/sbin/getty -L 115200 hvc0
 
 # Stuff to do for the 3-finger salute
 #::ctrlaltdel:/sbin/reboot

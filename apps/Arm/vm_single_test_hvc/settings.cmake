@@ -11,6 +11,8 @@ if(NOT "${PLATFORM}" IN_LIST supported)
          Supported: ${supported}")
 endif()
 
+#set(LibUtilsDefaultZfLogLevel "0" CACHE STRING "" FORCE)
+
 set(LibUSB OFF CACHE BOOL "" FORCE)
 set(VmPCISupport ON CACHE BOOL "" FORCE)
 set(VmVirtioConsole ON CACHE BOOL "" FORCE)

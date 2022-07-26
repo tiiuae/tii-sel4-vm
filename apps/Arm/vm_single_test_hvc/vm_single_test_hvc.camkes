@@ -38,7 +38,7 @@ assembly {
          * the 2M frame mapping issue on RPi4. Figure out why.
          * Also the 12bit pools were not necessary after all.
          */
-        vm0.cnode_size_bits = 18;
+        vm0.cnode_size_bits = 23;
         vm0.simple_untyped24_pool = 12;
         vm0.simple_untyped12_pool = 12;
     }
