@@ -55,6 +55,7 @@ assembly {
         ];
         vm0.untyped_mmios = [
             "0x10000000:28",  //RAM
+            "0x20000000:28",  //RAM
             "0x600000000:33", // PCIe
         ];
         vm0.irqs =  [];
