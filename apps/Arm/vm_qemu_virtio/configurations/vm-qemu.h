@@ -15,6 +15,10 @@
     attribute int num_vcpus = 1; \
     attribute int num_extra_frame_caps; \
     attribute int extra_frame_map_address; \
+    attribute int tracebuffer_base; \
+    attribute int tracebuffer_size; \
+    attribute int ramoops_base; \
+    attribute int ramoops_size; \
     attribute { \
         string linux_ram_base; \
         string linux_ram_paddr_base; \

@@ -10,18 +10,25 @@
 
 #include "trace.h"
 
+#ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
+
 extern vka_t _vka;
 extern vspace_t _vspace;
 
-static vka_object_t kernel_trace_frame;
-void *kernel_trace;
-uintptr_t kernel_trace_vm;
+static vka_object_t kernel_trace_frame, __kernel_trace_frame;
+void *kernel_trace, *__kernel_trace;
+void *kernel_trace_vm, *__kernel_trace_vm;
 
 static const char *trace_names[TRACE_POINT_MAX];
 static int trace_names_count;
 
 bool trace_started;
 unsigned int benchmark_entries;
+
+extern const int __attribute__((weak)) tracebuffer_base;
+extern const int __attribute__((weak)) tracebuffer_size;
+extern const int __attribute__((weak)) ramoops_base;
+extern const int __attribute__((weak)) ramoops_size;
 
 unsigned int trace_index(const char *str)
 {
@@ -37,24 +44,91 @@ unsigned int trace_index(const char *str)
     return trace_names_count - 1;
 }
 
+static inline int vka_cnode_copy(seL4_CPtr slot_src, seL4_CPtr slot_dst, seL4_CapRights_t rights)
+{
+    cspacepath_t src_path, dest_path;
+
+    vka_cspace_make_path(&_vka, slot_src, &src_path);
+    vka_cspace_make_path(&_vka, slot_dst, &dest_path);
+
+    return seL4_CNode_Copy(
+               /* _service */      dest_path.root,
+               /* dest_index */    dest_path.capPtr,
+               /* destDepth */     dest_path.capDepth,
+               /* src_root */      src_path.root,
+               /* src_index */     src_path.capPtr,
+               /* src_depth */     src_path.capDepth,
+               /* rights */        rights
+           );
+}
+
+void trace_init_shared_mem(vm_t *vm, const char *name,
+		const uint64_t mem_addr, const uint64_t mem_size,
+		vka_object_t *local_mem, void **vm_memory, void **vmm_memory)
+{
+    /* virtual address to use on VM side,
+     * otherwise it will allocate @0x10000000
+     * and conflicts with VM's memory
+     */
+    void *vaddr = (void *)mem_addr;
+
+    /* Allocate memory  */
+    int error = vka_alloc_frame(&_vka, mem_size, local_mem);
+    if (error) {
+	    ZF_LOGF("%s: failed to allocate pages for kernel log, size: 0x%lx", name, mem_size);
+    }
+    ZF_LOGE("%s: allocated page @0x%lx", name, local_mem->cptr);
+
+    /* Reserve VM virtual memory mem_size@vaddr */
+    reservation_t reservation =  vspace_reserve_range_at(&vm->mem.vm_vspace, vaddr, BIT(mem_size), seL4_AllRights, true);
+    assert(reservation.res);
+    ZF_LOGE("%s: reserved vaddr: 0x%lx", name, (unsigned long)vaddr);
+
+    /* Map page to the VM's vspace */
+    error = vspace_map_pages_at_vaddr(&vm->mem.vm_vspace, &local_mem->cptr, NULL, vaddr, 1, mem_size, reservation);
+    assert(error == seL4_NoError);
+    ZF_LOGE("%s: frame @0x%lx mapped to VM-> @0x%lx", name, local_mem->cptr, (unsigned long)vaddr);
+    *vm_memory = vaddr;
+
+    /* Duplicate the cap */
+    seL4_CPtr slot;
+    error = vka_cspace_alloc(&_vka, &slot);
+    assert(!error);
+
+    error = vka_cnode_copy(local_mem->cptr, slot, seL4_AllRights);
+    assert(error == seL4_NoError);
+
+    /* Maps page to VMM's vspace */
+    *vmm_memory = vspace_map_pages(&_vspace, &slot, NULL, seL4_AllRights, 1, mem_size, true);
+    assert(*vmm_memory);
+    ZF_LOGE("%s: frame @0x%lx mapped to VMM-> @0x%lx\n", name, local_mem->cptr, (unsigned long)*vmm_memory);
+}
+
 void trace_init(vm_t *vm)
 {
-    int error = vka_alloc_frame(&_vka, seL4_LargePageBits, &kernel_trace_frame);
-    if (error) {
-	    ZF_LOGF("Failed to allocate large page for kernel log");
-    }
-    error = seL4_BenchmarkSetLogBuffer(kernel_trace_frame.cptr);
-    if (error) {
-	    ZF_LOGF("Cannot set kernel log buffer");
-    }
-    kernel_trace = vspace_map_pages(&_vspace, &kernel_trace_frame.cptr, NULL, seL4_AllRights, 1, seL4_LargePageBits, true);
-    if (!kernel_trace) {
-        ZF_LOGF("Cannot map kernel log buffer to VMM vspace");
+    if (&ramoops_base && &ramoops_size && ramoops_base && ramoops_size) {
+        const uint64_t pstore_mem_size_bits = seL4_LargePageBits;
+
+        if (ramoops_size != BIT(seL4_LargePageBits))
+             ZF_LOGF("For now only 2M (seL4_LargePageBits) size supported. ramoops_size: 0x%x", ramoops_size);
+
+        trace_init_shared_mem(vm, "pstore_mem", ramoops_base, pstore_mem_size_bits,
+                &__kernel_trace_frame, &__kernel_trace_vm, &__kernel_trace);
     }
 
-    kernel_trace_vm = (uintptr_t)vspace_map_pages(&vm->mem.vm_vspace, &kernel_trace_frame.cptr, NULL, seL4_AllRights, 1, seL4_LargePageBits, true);
-    if (!kernel_trace_vm) {
-        ZF_LOGF("Cannot map kernel log buffer to VM vspace");
+    if (&tracebuffer_base && &tracebuffer_size && tracebuffer_base && tracebuffer_size) {
+        const uint64_t sel4buf_mem_size_bits = seL4_LargePageBits;
+
+        if (tracebuffer_size != BIT(seL4_LargePageBits))
+             ZF_LOGF("For now only 2M (seL4_LargePageBits) size supported. tracebuffer_size: 0x%x", tracebuffer_size);
+
+        trace_init_shared_mem(vm, "sel4buf_mem", tracebuffer_base, sel4buf_mem_size_bits,
+                &kernel_trace_frame, &kernel_trace_vm, &kernel_trace);
+
+        int error = seL4_BenchmarkSetLogBuffer(kernel_trace_frame.cptr);
+        if (error) {
+            ZF_LOGF("Cannot set kernel log buffer");
+        }
     }
 }
 
@@ -95,3 +169,5 @@ void trace_dump(void)
         }
     }
 }
+
+#endif /* CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES */
