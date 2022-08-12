@@ -9,7 +9,9 @@ on:
       manifest_repo:
         description: git url of manifest repo
         required: true 
-
+      release_doc_loc:
+        description: location of release documentaion
+        required: true
 jobs:
     tii-sel4-vm:
       name: build tii-sel4-vm
@@ -19,7 +21,14 @@ jobs:
           run: |
            rm -rf *
            echo "TII_SEL4_RELEASE=tii_sel4_${{inputs.tii_sel4_version}}" >> $GITHUB_ENV
+           echo "TII_SEL4_RELEASE_DOC=${{inputs.release_doc_loc}}" >> $GITHUB_ENV
            echo "${{env.TII_SEL4_RELEASE}}"
+           echo "${{env.TII_SEL4_RELEASE_DOC}}"
+
+        - name: Downloading release documentaion
+          run: |
+            curl -u ${{ secrets.RT_USER }}:${{ secrets.RT_APIKEY }} -XGET "${{env.TII_SEL4_RELEASE_DOC}}" --output ${{env.TII_SEL4_RELEASE}}.md
+            cat ${{env.TII_SEL4_RELEASE}}.md          
         - name: Install repo
           run: |
             mkdir -p ~/.bin
@@ -102,6 +111,11 @@ jobs:
             for target in "${yocto_boot_targets[@]}"; do
             cp tii_sel4_build/hardware/rpi4/$target "${{env.TII_SEL4_RELEASE}}/bin/boot/"
             done
+        - name: Downloading release documentaion
+          run: |
+            curl -u ${{ secrets.RT_USER }}:${{ secrets.RT_APIKEY }} -XGET "${{env.TII_SEL4_RELEASE_DOC}}" --output ${{env.TII_SEL4_RELEASE}}.md
+            cp ${{env.TII_SEL4_RELEASE}}.md "${{env.TII_SEL4_RELEASE}}/"
+
         - name: Create release package 
           run: fakeroot tar -cjf "${{env.TII_SEL4_RELEASE}}.tar.bz2" "${{env.TII_SEL4_RELEASE}}"
         - name: Prepare artifactory for upload
@@ -109,7 +123,7 @@ jobs:
         - name: Push to artifactory
           env:
             RT_USER: ${{ secrets.RT_USER }}
-            RT_APIKEY: ${{ secrets.RT_APIKEY}}
+            RT_APIKEY: ${{ secrets.RT_APIKEY }}
             RT_URL: ${{ secrets.RT_URL }}
           run: |
             jf c add --url "$RT_URL" --user "$RT_USER" --password "$RT_APIKEY"
