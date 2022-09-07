@@ -45,7 +45,9 @@ static sync_sem_t qemu_started;
 
 extern vka_t _vka;
 
-extern unsigned long linux_ram_base;
+//extern unsigned long linux_ram_base;
+
+extern const int vmid;
 
 static void intervm_callback(void *opaque);
 
@@ -57,7 +59,7 @@ void qemu_initialize_semaphores(vm_t *_vm)
 {
     vm = _vm;
 
-    if (linux_ram_base != 0x48000000) {
+    if (vmid == 0) {
         ZF_LOGI("Skipping QEMU module initialization on driver VM.");
         return;
     }

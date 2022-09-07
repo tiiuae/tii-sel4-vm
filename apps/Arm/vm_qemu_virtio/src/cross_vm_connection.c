@@ -24,6 +24,8 @@
 extern dataport_caps_handle_t ctrl_handle;
 extern dataport_caps_handle_t memdev_handle;
 
+extern const int vmid;
+
 static struct camkes_crossvm_connection connections[] = {
     { &ctrl_handle, intervm_source_emit, 16, "QEMU control" },
     { &memdev_handle, NULL, -1, "Guest memory" }
@@ -42,7 +44,7 @@ seL4_Word WEAK intervm_sink_notification_badge(void);
 
 void init_cross_vm_connections(vm_t *vm, void *cookie)
 {
-    if (linux_ram_base == 0x48000000) {
+    if (vmid != 0) {
         ZF_LOGI("running inside user VM, not initializing cross connections");
         return;
     }

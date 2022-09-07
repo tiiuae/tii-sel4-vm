@@ -50,6 +50,7 @@ assembly {
             "linux_stdout" : "/soc/serial@7e215040",
             "dtb_name" : "",
         };
+        vm0.vmid = 0;
         vm0.mmios = [
             "0xff846000:0x1000:12"
         ];
@@ -119,6 +120,7 @@ assembly {
             "linux_stdout" : "hvc0",
             "dtb_name" : "",
         };
+        vm1.vmid = 1;
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];

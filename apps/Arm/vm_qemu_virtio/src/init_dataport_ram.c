@@ -17,6 +17,8 @@
 extern unsigned long linux_ram_base;
 extern unsigned long linux_ram_size;
 
+extern const int vmid;
+
 extern dataport_caps_handle_t memdev_handle;
 
 static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
@@ -49,7 +51,7 @@ void init_ram_module(vm_t *vm, void *cookie)
 {
     int err;
 
-    if (linux_ram_base != 0x48000000) {
+    if (vmid == 0) {
 	ZF_LOGI("initializing RAM module the old way");
         do_init_ram_module(vm, cookie);
         return;
