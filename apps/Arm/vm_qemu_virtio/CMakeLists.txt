@@ -21,9 +21,14 @@ DefineCAmkESVMFileServer()
 
 CAmkESAddImportPath(${KernelARMPlatform})
 
-DeclareCAmkESComponent(VM SOURCES src/cross_vm_connection.c src/init_dataport_ram.c src/qemu.c)
-
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
+CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/include/")
+
+# Create interface include library
+add_library(app_include INTERFACE)
+target_include_directories(app_include INTERFACE "${CMAKE_CURRENT_LIST_DIR}/include/")
+
+DeclareCAmkESComponent(VM SOURCES src/cross_vm_connection.c src/init_dataport_ram.c src/qemu.c LIBS app_include)
 
 # Declare root server
 DeclareCAmkESRootserver(

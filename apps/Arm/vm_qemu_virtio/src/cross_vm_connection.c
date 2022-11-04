@@ -12,6 +12,8 @@
 #include <sel4vmmplatsupport/drivers/pci_helper.h>
 #include <pci/helper.h>
 
+#include <vm-qemu-defs.h>
+
 #ifdef CONFIG_PLAT_QEMU_ARM_VIRT
 #define CONNECTION_BASE_ADDRESS 0xDF000000
 #elif CONFIG_PLAT_BCM2711
@@ -24,6 +26,7 @@
 extern dataport_caps_handle_t ctrl_handle;
 extern dataport_caps_handle_t memdev_handle;
 
+extern unsigned long linux_ram_base;
 extern const int vmid;
 
 static struct camkes_crossvm_connection connections[] = {
@@ -37,15 +40,13 @@ static int consume_callback(vm_t *vm, void *cookie)
     return 0;
 }
 
-extern unsigned long linux_ram_base;
-
 /* VM1 does not define this */
 seL4_Word WEAK intervm_sink_notification_badge(void);
 
 void init_cross_vm_connections(vm_t *vm, void *cookie)
 {
     if (vmid != 0) {
-        ZF_LOGI("running inside user VM, not initializing cross connections");
+        ZF_LOGI("Running inside user VM, not initializing cross connections");
         return;
     }
 

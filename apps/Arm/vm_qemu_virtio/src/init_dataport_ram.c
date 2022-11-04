@@ -14,9 +14,10 @@
 #include <sel4vmmplatsupport/guest_memory_util.h>
 #include <vmlinux.h>
 
+#include <vm-qemu-defs.h>
+
 extern unsigned long linux_ram_base;
 extern unsigned long linux_ram_size;
-
 extern const int vmid;
 
 extern dataport_caps_handle_t memdev_handle;
@@ -26,22 +27,23 @@ static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
     cspacepath_t return_frame;
     vm_frame_t frame_result = { seL4_CapNull, seL4_NoRights, 0, 0 };
 
-    int sz = seL4_PageBits;
+    size_t page_size_bits = seL4_PageBits;
     if (addr >= linux_ram_base && addr < (linux_ram_base + linux_ram_size)) {
-        sz = seL4_LargePageBits;
+        page_size_bits = dataport_get_page_size_bits(&memdev_handle);
     }
 
-    uintptr_t frame_start = ROUND_DOWN(addr, BIT(sz));
+    uintptr_t frame_start = PAGE_ALIGN(addr, BIT(page_size_bits));
     if (frame_start < linux_ram_base || frame_start > linux_ram_base + linux_ram_size) {
         ZF_LOGE("Error: Not dataport ram region");
         return frame_result;
     }
 
-    int page_idx = (frame_start - linux_ram_base) / BIT(sz);
+    int page_idx = (frame_start - linux_ram_base) / BIT(page_size_bits);
     frame_result.cptr = dataport_get_nth_frame_cap(&memdev_handle, page_idx);
     frame_result.rights = seL4_AllRights;
     frame_result.vaddr = frame_start;
-    frame_result.size_bits = sz;
+    frame_result.size_bits = page_size_bits;
+
     return frame_result;
 }
 
@@ -52,7 +54,7 @@ void init_ram_module(vm_t *vm, void *cookie)
     int err;
 
     if (vmid == 0) {
-	ZF_LOGI("initializing RAM module the old way");
+	    ZF_LOGI("initializing RAM module the old way");
         do_init_ram_module(vm, cookie);
         return;
     }
