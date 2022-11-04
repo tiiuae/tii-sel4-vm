@@ -27,8 +27,8 @@ extern dataport_caps_handle_t memdev_handle;
 extern const int vmid;
 
 static struct camkes_crossvm_connection connections[] = {
-    { &ctrl_handle, intervm_source_emit, 16, "QEMU control" },
-    { &memdev_handle, NULL, -1, "Guest memory" }
+    { &ctrl_handle, intervm_source_emit, 16, "guest-control-0" },
+    { &memdev_handle, NULL, -1, "guest-ram-0" }
 };
 
 static int consume_callback(vm_t *vm, void *cookie)
