@@ -1,0 +1,9 @@
+/*
+ * Copyright 2022, Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+procedure vmm_inf {
+        int call(in unsigned int arg1, in unsigned int arg2);
+};

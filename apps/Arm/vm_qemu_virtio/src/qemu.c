@@ -228,10 +228,16 @@ void wait_for_host_qemu(void)
     } while (!ok_to_run);
 }
 
+/* VM0 does not have this */
+int WEAK vmm_caller_call(unsigned int arg1, unsigned int arg2)
+{
+    return 0;
+}
+
 static inline void qemu_doorbell_ring(void)
 {
 //    ZF_LOGD("VMM ringing QEMU's doorbell");
-    intervm_source_emit();
+    vmm_caller_call(0, 0);
 }
 
 static bool debug_blacklisted(uintptr_t addr)
@@ -498,6 +504,12 @@ memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu, uintptr
 
 void qemu_init(vm_t *vm, void *cookie)
 {
+}
+
+int vmm_callee_call(unsigned int arg1, unsigned int arg2)
+{
+    seL4_Send(vm->guest_endpoint, seL4_MessageInfo_new(0, 0, 0, 0));
+    return 0;
 }
 
 DEFINE_MODULE(qemu, NULL, qemu_init)

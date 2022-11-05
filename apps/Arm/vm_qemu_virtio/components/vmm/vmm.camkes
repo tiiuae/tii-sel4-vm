@@ -1,0 +1,10 @@
+/*
+ * Copyright 2022, Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+import "../../interfaces/vmm.idl4"; 
+
+component vmm {
+        provides vmm_inf        vmm;
+}

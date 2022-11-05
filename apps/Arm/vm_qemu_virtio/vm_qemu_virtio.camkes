@@ -8,6 +8,8 @@
 #include <configurations/vm.h>
 #include <vm-qemu.h>
 
+import "components/vmm/vmm.camkes";
+
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
 import <seL4VMDTBPassthrough.idl4>;
@@ -26,6 +28,9 @@ component VM {
 
     dataport Buf(4096) ctrl;
     dataport Buf(4096) memdev;
+
+    provides vmm_inf   vmm_callee;
+    maybe uses vmm_inf vmm_caller;
 }
 
 assembly {
@@ -46,6 +51,8 @@ assembly {
         /* DTB Passthrough */
         connection seL4VMDTBPassthrough vm0_dtb(from vm0.dtb_self, to vm0.dtb);
         connection seL4VMDTBPassthrough vm1_dtb(from vm1.dtb_self, to vm1.dtb);
+
+        connection seL4RPCCall vmm_call(from vm1.vmm_caller, to vm0.vmm_callee);
     }
     configuration {
         VM_GENERAL_CONFIGURATION_DEF()
