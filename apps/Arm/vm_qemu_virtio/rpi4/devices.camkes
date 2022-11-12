@@ -104,7 +104,7 @@ assembly {
             // but build system are not able to proceess it
             // So it will be added in fdt_manipulation.c
             // Ticket to track: HYPR-434
-            // { "path": "/scb/pcie@7d500000/pci@0,0/usb@0,0" },
+            { "path": "/scb/pcie@7d500000/pci@0,0/usb@0,0" },
             { "path": "/soc/firmware/reset" },
         ]);
 
