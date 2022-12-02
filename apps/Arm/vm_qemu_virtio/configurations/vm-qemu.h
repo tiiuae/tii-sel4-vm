@@ -40,5 +40,6 @@
     vm##num.asid_pool = true; \
     vm##num.simple = true; \
     vm##num.sem_value = 0; \
-    vm##num.heap_size = 0x300000;
+    vm##num.heap_size = 0x300000; \
+    vm##num.vmid = num;
 
