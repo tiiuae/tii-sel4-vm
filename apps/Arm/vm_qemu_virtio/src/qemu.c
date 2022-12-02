@@ -55,6 +55,8 @@ static vmm_pci_config_t make_qemu_pci_config(void *cookie);
 
 static vm_t *vm;
 
+typedef memory_fault_result_t (*qemu_fault_handler_cb)(vm_t *vm, vm_vcpu_t *vcpu, uintptr_t paddr, size_t len, void *cookie);
+
 void qemu_initialize_semaphores(vm_t *_vm)
 {
     vm = _vm;
@@ -97,9 +99,9 @@ static ps_io_ops_t ops;
 static vmm_pci_entry_t vmm_virtio_qemu_pci_bar(virtio_qemu_t *qemu)
 {
     vmm_pci_address_t bogus_addr = {
-	    .bus = 0,
-	    .dev = 0,
-	    .fun = 0,
+        .bus = 0,
+        .dev = 0,
+        .fun = 0,
     };
     return vmm_pci_create_passthrough(bogus_addr, make_qemu_pci_config(qemu));
 }
@@ -246,7 +248,7 @@ static bool debug_blacklisted(uintptr_t addr)
 static unsigned int qemu_index(uintptr_t addr, void *cookie)
 {
     if (addr >= (1ULL << 20))
-	    return QEMU_PCIDEV_MASK;
+        return QEMU_PCIDEV_MASK;
 
     virtio_qemu_t *qemu = cookie;
     return qemu->idx << QEMU_PCIDEV_SHIFT;
@@ -334,42 +336,6 @@ static int vcpu_finish_qemu_write(rpcmsg_t *msg)
     return 0;
 }
 
-#if 0
-static void qemu_putc_log(char ch)
-{
-    logbuffer_t *lb = logbuffer;
-
-    if ((lb->sz + 1) < sizeof(lb->data)) {
-        lb->data[lb->sz++] = ch;
-    }
-
-    if (ch == 0x0a) {
-        rpcmsg_t *msg = rpcmsg_queue_tail(tx_queue);
-        assert(msg);
-
-    	rpcmsg_t original = *msg;
-
-        msg->mr0 = QEMU_OP_PUTC_LOG;
-        rpcmsg_queue_advance_tail(tx_queue);
-
-        qemu_doorbell_ring();
-        vmm_doorbell_wait();
-    
-        msg = peek_sync_msg(rx_queue);
-        if (QEMU_OP(msg->mr0) != QEMU_OP_PUTC_LOG) {
-            ZF_LOGE("message does not match");
-            rpcmsg_queue_dump("rx", rx_queue, rx_queue->head);
-            printf("-----------\n");
-            rpcmsg_queue_dump("tx", tx_queue, tx_queue->tail);
-            printf("-----------\n");
-        }
-        rpcmsg_queue_advance_head(rx_queue);
-
-        lb->sz = 0;
-    }
-}
-#endif
-
 #define QEMU_READ_OP(sz) do {                                           \
     uint32_t result;                                                    \
     (void) qemu_start_read(NULL, cookie, offset, sz);   \
@@ -431,15 +397,57 @@ static vmm_pci_config_t make_qemu_pci_config(void *cookie)
     };
 }
 
-static void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+static inline bool is_pl011_register(uintptr_t paddr)
+{
+    return (paddr >= 0x09000000 && paddr < 0x09001000);
+}
+
+static void pl011_read_fault_emul(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+{
+    switch (paddr) {
+    /* UARTFR: uart flag register */
+    case 0x09000018:
+        /* transmitter empty and transmitter-hold-register empty */
+        set_vcpu_fault_data(vcpu, 0x90);
+        break;
+    default:
+        ZF_LOGE("unhandled read: vcpu=%d addr=%"PRIx64" len=%zu",
+                vcpu->vcpu_id, paddr, len);
+        break;
+    }
+}
+
+static void pl011_write_fault_emul(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+{
+    seL4_Word value = emulate_vcpu_fault(vcpu, 0);
+
+    switch (paddr) {
+    /* UARTDR: uart data register */
+    case 0x09000000:
+        putchar((int) value);
+        break;
+    default:
+        ZF_LOGE("unhandled write: vcpu=%d addr=%"PRIx64" len=%zu value=%08",
+                vcpu->vcpu_id, paddr, len, value);
+        break;
+    }
+}
+
+/* Enable pl011 emulation by putting "earlycon=pl011,mmio32,0x09000000" to
+ * kernel arguments */
+static inline void handle_pl011_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+{
+    if (is_vcpu_read_fault(vcpu)) {
+        pl011_read_fault_emul(vcpu, paddr, len);
+    } else {
+        pl011_write_fault_emul(vcpu, paddr, len);
+    }
+    advance_vcpu_fault(vcpu);
+}
+
+static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     int err;
-
-    if (paddr == 0x09000018) {
-        /* UART flag register: both RX and TX FIFOs empty */
-        set_vcpu_fault_data(vcpu, 0x90);
-        return;
-    }
 
     err = qemu_start_read(vcpu, NULL, paddr, len);
     if (err) {
@@ -447,25 +455,15 @@ static void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
     }
 }
 
-static void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     uint32_t mask;
     uint32_t value;
-    uint8_t bar;
     int err;
 
     seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
     mask = get_vcpu_fault_data_mask(vcpu) >> s;
     value = get_vcpu_fault_data(vcpu) & mask;
-
-    if (paddr == 0x09000000) {
-        /* UART data register */
-        printf("%c", (unsigned char) value);
-#if 0
-        qemu_putc_log((unsigned char) value);
-#endif
-        return;
-    }
 
     err = qemu_start_write(vcpu, NULL, paddr, len, value);
     if (err) {
@@ -473,17 +471,25 @@ static void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
     }
 }
 
-static uint32_t get_fault_data(vm_vcpu_t *vcpu)
+memory_fault_result_t pl011_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
+                                          uintptr_t paddr, size_t len,
+                                          void *cookie)
 {
-    return get_vcpu_fault_data(vcpu) & get_vcpu_fault_data_mask(vcpu);
+    if (!is_pl011_register(paddr)) {
+        return FAULT_UNHANDLED;
+    }
+
+    handle_pl011_fault(vcpu, paddr, len);
+
+    return FAULT_HANDLED;
 }
 
-memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu, uintptr_t paddr, size_t len, void *cookie)
+memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
+                                         uintptr_t paddr, size_t len,
+                                         void *cookie)
 {
     if (paddr < 0x60000000 || paddr >= 0x60100000) {
-        if (paddr < 0x09000000 || paddr >= 0x09001000) {
-            return FAULT_UNHANDLED;
-        }
+        return FAULT_UNHANDLED;
     }
 
     if (is_vcpu_read_fault(vcpu)) {
@@ -491,6 +497,46 @@ memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu, uintptr
     } else {
         qemu_write_fault(vcpu, paddr, len);
     }
+
+    return FAULT_HANDLED;
+}
+
+qemu_fault_handler_cb fault_handlers[] = {
+    pl011_fault_handler,
+    qemu_fault_handler,
+    NULL, // sentinel
+};
+
+memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu, uintptr_t paddr, size_t len, void *cookie)
+{
+    qemu_fault_handler_cb *handler = fault_handlers;
+    memory_fault_result_t rc = FAULT_UNHANDLED;
+    for (handler = fault_handlers; handler != NULL; handler++) {
+        rc = (*handler)(vm, vcpu, paddr, len, cookie);
+        if (rc == FAULT_HANDLED)
+            break;
+
+    }
+
+    return rc;
+
+#if 0
+    if (paddr < 0x60000000 || paddr >= 0x60100000) {
+        if (paddr < 0x09000000 || paddr >= 0x09001000) {
+            return FAULT_UNHANDLED;
+        }
+    }
+
+    if (is_pl011_register(paddr)) {
+        handle_pl011_fault(vcpu, paddr, len);
+    } else {
+        if (is_vcpu_read_fault(vcpu)) {
+            qemu_read_fault(vcpu, paddr, len);
+        } else {
+            qemu_write_fault(vcpu, paddr, len);
+        }
+    }
+#endif
 
     /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
