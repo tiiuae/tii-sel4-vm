@@ -119,6 +119,7 @@ assembly {
             "linux_bootcmdline" : "console=hvc0 earlycon=hvc0 root=/dev/vda2 rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
             "linux_stdout" : "hvc0",
             "dtb_name" : "",
+            "initrd_name" : "",
         };
         vm1.mmios = [
             "0xff846000:0x1000:12"
