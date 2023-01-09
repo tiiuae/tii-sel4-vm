@@ -23,6 +23,11 @@ static int trace_names_count;
 bool trace_started;
 unsigned int benchmark_entries;
 
+extern const int __attribute__((weak)) tracebuffer_base;
+extern const int __attribute__((weak)) tracebuffer_size;
+extern const int __attribute__((weak)) ramoops_base;
+extern const int __attribute__((weak)) ramoops_size;
+
 unsigned int trace_index(const char *str)
 {
     for (int i = 1; i < trace_names_count; i++) {
@@ -99,26 +104,30 @@ void trace_init_shared_mem(vm_t *vm, const char *name,
 
 void trace_init(vm_t *vm)
 {
-#if PSTORE_MEM
-    const uint64_t pstore_mem_addr = 0x08000000;
-    const uint64_t pstore_mem_size_bits = seL4_LargePageBits;
-    const uint64_t pstore_mem_size = BIT(seL4_LargePageBits);
-#endif
+    if (&ramoops_base && &ramoops_size && ramoops_base && ramoops_size) {
+        const uint64_t pstore_mem_size_bits = seL4_LargePageBits;
 
-    const uint64_t sel4buf_mem_addr = 0x08800000;
-    const uint64_t sel4buf_mem_size_bits = seL4_LargePageBits;
-    const uint64_t sel4buf_mem_size = BIT(seL4_LargePageBits);
+        if (ramoops_size != BIT(seL4_LargePageBits))
+             ZF_LOGF("For now only 2M (seL4_LargePageBits) size supported. ramoops_size: 0x%x", ramoops_size);
 
-#if PSTEORE_MEM
-    trace_init_shared_mem(vm, "pstore_mem", pstore_mem_addr, pstore_mem_size_bits,
-		    &__kernel_trace_frame, &__kernel_trace_vm, &__kernel_trace);
-#endif
-    trace_init_shared_mem(vm, "sel4buf_mem", sel4buf_mem_addr, sel4buf_mem_size_bits,
-		    &kernel_trace_frame, &kernel_trace_vm, &kernel_trace);
+        trace_init_shared_mem(vm, "pstore_mem", ramoops_base, pstore_mem_size_bits,
+                &__kernel_trace_frame, &__kernel_trace_vm, &__kernel_trace);
+    }
 
-    int error = seL4_BenchmarkSetLogBuffer(kernel_trace_frame.cptr);
-    if (error) {
-	    ZF_LOGF("Cannot set kernel log buffer");
+    if (&tracebuffer_base && &tracebuffer_size && tracebuffer_base && tracebuffer_size) {
+        const uint64_t sel4buf_mem_size_bits = seL4_LargePageBits;
+
+        if (tracebuffer_size != BIT(seL4_LargePageBits))
+             ZF_LOGF("For now only 2M (seL4_LargePageBits) size supported. tracebuffer_size: 0x%x", tracebuffer_size);
+
+
+        trace_init_shared_mem(vm, "sel4buf_mem", tracebuffer_base, sel4buf_mem_size_bits,
+                &kernel_trace_frame, &kernel_trace_vm, &kernel_trace);
+
+        int error = seL4_BenchmarkSetLogBuffer(kernel_trace_frame.cptr);
+        if (error) {
+            ZF_LOGF("Cannot set kernel log buffer");
+        }
     }
 }
 

@@ -50,6 +50,8 @@ assembly {
             "linux_stdout" : "/soc/serial@7e215040",
             "dtb_name" : "",
         };
+        vm0.tracebuffer_base = 0x08800000;
+        vm0.tracebuffer_size = 0x200000;
         vm0.mmios = [
             "0xff846000:0x1000:12"
         ];
