@@ -26,7 +26,7 @@
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>
 
-#include <virtio/virtio_plat.h>
+#include <virtioarm/virtio_plat.h>
 
 #define VIRTIO_QEMU_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
 
