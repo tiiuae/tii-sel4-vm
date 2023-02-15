@@ -23,6 +23,7 @@
 #include "sel4-qemu.h"
 #include "pl011_emul.h"
 #include "trace.h"
+#include "ioreq.h"
 
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>
@@ -31,10 +32,8 @@
 
 #define VIRTIO_QEMU_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
 
-int qemu_start_read(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size);
-int qemu_start_write(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size, uint32_t value);
-
 extern void *ctrl;
+extern void *iobuf;
 extern void *memdev;
 
 /* VM0 does not have these */
@@ -102,8 +101,6 @@ void qemu_initialize_semaphores(vm_t *_vm)
 
 typedef struct virtio_qemu {
     unsigned int iobase;
-//    virtio_emul_t *emul;
-//    struct console_passthrough emul_driver_funcs;
     ps_io_ops_t ioops;
     unsigned int idx;
 } virtio_qemu_t;
@@ -165,25 +162,14 @@ static void register_pci_device(void)
 
 int irq_ext_modify(vm_vcpu_t *vcpu, unsigned int source, unsigned int irq, bool set);
 
-static int vcpu_finish_qemu_read(rpcmsg_t *msg);
-static int vcpu_finish_qemu_write(rpcmsg_t *msg);
-
 static bool handle_async(rpcmsg_t *msg)
 {
     int err;
 
     switch (QEMU_OP(msg->mr0)) {
-    case QEMU_OP_READ:
-        err = vcpu_finish_qemu_read(msg);
-        if (err) {
+    case QEMU_OP_IO_HANDLED:
+        if (ioreq_mmio_finish(vm, iobuf, msg->mr1))
             return false;
-        }
-        break;
-    case QEMU_OP_WRITE:
-        err = vcpu_finish_qemu_write(msg);
-        if (err) {
-            return false;
-        }
         break;
     case QEMU_OP_SET_IRQ:
         irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_QEMU_PLAT_INTERRUPT_LINE, true);
@@ -191,10 +177,12 @@ static bool handle_async(rpcmsg_t *msg)
     case QEMU_OP_CLR_IRQ:
         irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_QEMU_PLAT_INTERRUPT_LINE, false);
         break;
-    case QEMU_OP_START_VM:
+    case QEMU_OP_START_VM: {
+        ioreq_init(iobuf);
         ok_to_run = 1;
         sync_sem_post(&qemu_started);
         break;
+    }
     case QEMU_OP_REGISTER_PCI_DEV:
         register_pci_device();
         break;
@@ -247,158 +235,62 @@ static void wait_for_host_qemu(void)
     } while (!ok_to_run);
 }
 
-static inline void qemu_doorbell_ring(void)
+static inline void host_upcall(void)
 {
-//    ZF_LOGD("VMM ringing QEMU's doorbell");
     intervm_source_emit();
 }
 
-static bool debug_blacklisted(uintptr_t addr)
+static inline uint32_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
+                                      uintptr_t offset, size_t size,
+                                      uint32_t value)
 {
-    return true;
-    if (addr >= 0x09000000 && addr < 0x09001000) {
-        return true;
-    }
-    return false;
+    int slot = ioreq_pci_start(iobuf, qemu->idx, dir, offset, size, value);
+    assert(ioreq_slot_valid(slot));
+
+    host_upcall();
+    sync_sem_wait(&handoff);
+
+    value = ioreq_pci_finish(iobuf, slot);
+    rpcmsg_queue_advance_head(rx_queue);
+
+    return value;
 }
 
-static unsigned int qemu_index(uintptr_t addr, void *cookie)
-{
-    if (addr >= (1ULL << 20))
-        return QEMU_PCIDEV_MASK;
-
-    virtio_qemu_t *qemu = cookie;
-    return qemu->idx << QEMU_PCIDEV_SHIFT;
-}
-
-static unsigned int seq_id;
-
-int qemu_start_read(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size)
-{
-    assert(size >= 0 && size <= sizeof(seL4_Word));
-
-    rpcmsg_t *msg = rpcmsg_queue_tail(tx_queue);
-    assert(msg);
-
-    seL4_Word vcpu_id = vcpu ? vcpu->vcpu_id : QEMU_VCPU_NONE;
-
-    msg->mr0 = QEMU_OP_READ | qemu_index(offset, cookie) | QEMU_ID_FROM(seq_id++) | (vcpu_id << QEMU_VCPU_SHIFT);
-    msg->mr1 = offset;
-    msg->mr2 = size;
-    rpcmsg_queue_advance_tail(tx_queue);
-
-    qemu_doorbell_ring();
-
-    return 0;
-}
-
-int qemu_start_write(vm_vcpu_t *vcpu, void *cookie, uintptr_t offset, size_t size, uint32_t value)
-{
-    if (!debug_blacklisted(offset)) {
-        ZF_LOGD("offset=%"PRIx64" size=%zu value=%08"PRIu32, offset, size, value);
-    }
-    assert(size >= 0 && size <= sizeof(seL4_Word));
-
-    rpcmsg_t *msg = rpcmsg_queue_tail(tx_queue);
-    assert(msg);
-
-    seL4_Word vcpu_id = vcpu ? vcpu->vcpu_id : QEMU_VCPU_NONE;
-
-    msg->mr0 = QEMU_OP_WRITE | qemu_index(offset, cookie) | QEMU_ID_FROM(seq_id++) | (vcpu_id << QEMU_VCPU_SHIFT);
-    msg->mr1 = offset;
-    msg->mr2 = size;
-    memcpy(&msg->mr3, &value, size);
-    rpcmsg_queue_advance_tail(tx_queue);
-
-    qemu_doorbell_ring();
-
-    return 0;
-}
-
-static inline vm_vcpu_t *vcpu_from_msg(rpcmsg_t *msg)
-{
-    unsigned int vcpu_id = QEMU_VCPU(msg->mr0);
-    if (vcpu_id == QEMU_VCPU_NONE) {
-        return NULL;
-    }
-    return vm->vcpus[vcpu_id];
-}
-
-static int vcpu_finish_qemu_read(rpcmsg_t *msg)
-{
-    uint32_t data = (uint32_t) msg->mr3;
-
-    vm_vcpu_t *vcpu = vcpu_from_msg(msg);
-    if (vcpu == NULL) {
-        return -1;
-    }
-
-    seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-    set_vcpu_fault_data(vcpu, data << s);
-
-    advance_vcpu_fault(vcpu);
-
-    return 0;
-}
-
-static int vcpu_finish_qemu_write(rpcmsg_t *msg)
-{
-    vm_vcpu_t *vcpu = vcpu_from_msg(msg);
-    if (vcpu == NULL) {
-        return -1;
-    }
-
-    advance_vcpu_fault(vcpu);
-
-    return 0;
-}
-
-#define QEMU_READ_OP(sz) do {                                           \
-    uint32_t result;                                                    \
-    (void) qemu_start_read(NULL, cookie, offset, sz);   \
-    sync_sem_wait(&handoff); \
-    rpcmsg_t *msg = rpcmsg_queue_head(rx_queue); \
-    result = (uint32_t) msg->mr3; \
-    rpcmsg_queue_advance_head(rx_queue); \
-    return result;                                                      \
-} while (0)
-
-#define QEMU_WRITE_OP(sz) do { \
-    (void) qemu_start_write(NULL, cookie, offset, sz, val); \
-    sync_sem_wait(&handoff); \
-    rpcmsg_queue_advance_head(rx_queue); \
-} while (0)
+#define qemu_pci_read(_qemu, _offset, _sz) \
+    qemu_pci_start(_qemu, SEL4_IO_DIR_READ, _offset, _sz, 0)
+#define qemu_pci_write(_qemu, _offset, _sz, _val) \
+    qemu_pci_start(_qemu, SEL4_IO_DIR_WRITE, _offset, _sz, _val)
 
 static uint8_t qemu_pci_read8(void *cookie, vmm_pci_address_t addr, unsigned int offset)
 {
     if (offset == 0x3c)
         return VIRTIO_CON_PLAT_INTERRUPT_LINE;
-    QEMU_READ_OP(1);
+    return qemu_pci_read(cookie, offset, 1);
 }
 
 static uint16_t qemu_pci_read16(void *cookie, vmm_pci_address_t addr, unsigned int offset)
 {
-    QEMU_READ_OP(2);
+    return qemu_pci_read(cookie, offset, 2);
 }
 
 static uint32_t qemu_pci_read32(void *cookie, vmm_pci_address_t addr, unsigned int offset)
 {
-    QEMU_READ_OP(4);
+    return qemu_pci_read(cookie, offset, 4);
 }
 
 static void qemu_pci_write8(void *cookie, vmm_pci_address_t addr, unsigned int offset, uint8_t val)
 {
-    QEMU_WRITE_OP(1);
+    qemu_pci_write(cookie, offset, 1, val);
 }
 
 static void qemu_pci_write16(void *cookie, vmm_pci_address_t addr, unsigned int offset, uint16_t val)
 {
-    QEMU_WRITE_OP(2);
+    qemu_pci_write(cookie, offset, 2, val);
 }
 
 static void qemu_pci_write32(void *cookie, vmm_pci_address_t addr, unsigned int offset, uint32_t val)
 {
-    QEMU_WRITE_OP(4);
+    qemu_pci_write(cookie, offset, 4, val);
 }
 
 static vmm_pci_config_t make_qemu_pci_config(void *cookie)
@@ -418,10 +310,11 @@ static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     int err;
 
-    err = qemu_start_read(vcpu, NULL, paddr, len);
-    if (err) {
-        ZF_LOGE("Failure performing read from QEMU");
+    err = ioreq_mmio_start(iobuf, vcpu, SEL4_IO_DIR_READ, paddr, len, 0);
+    if (err < 0) {
+        ZF_LOGF("Failure starting mmio read request");
     }
+    host_upcall();
 }
 
 static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
@@ -434,10 +327,11 @@ static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len
     mask = get_vcpu_fault_data_mask(vcpu) >> s;
     value = get_vcpu_fault_data(vcpu) & mask;
 
-    err = qemu_start_write(vcpu, NULL, paddr, len, value);
-    if (err) {
-        ZF_LOGE("Failure writing to QEMU");
+    err = ioreq_mmio_start(iobuf, vcpu, SEL4_IO_DIR_WRITE, paddr, len, value);
+    if (err < 0) {
+        ZF_LOGF("Failure starting mmio write request");
     }
+    host_upcall();
 }
 
 static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,

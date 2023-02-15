@@ -21,7 +21,13 @@ DefineCAmkESVMFileServer()
 
 CAmkESAddImportPath(${KernelARMPlatform})
 
-DeclareCAmkESComponent(VM SOURCES src/cross_vm_connection.c src/init_dataport_ram.c src/qemu.c src/trace.c)
+DeclareCAmkESComponent(VM SOURCES
+    src/cross_vm_connection.c
+    src/init_dataport_ram.c
+    src/qemu.c
+    src/trace.c
+    src/ioreq.c
+)
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
 

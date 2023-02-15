@@ -25,6 +25,7 @@ component VM {
     consumes QemuReqAck intervm_sink;
 
     dataport Buf(4096) ctrl;
+    dataport Buf(4096) iobuf;
     dataport Buf(4096) memdev;
 }
 
@@ -38,6 +39,7 @@ assembly {
         VM_COMPOSITION_DEF(1)
 
         connection seL4SharedDataWithCaps vm_ctrl(from vm0.ctrl, to vm1.ctrl);
+        connection seL4SharedDataWithCaps vm_iobuf(from vm0.iobuf, to vm1.iobuf);
         connection seL4SharedDataWithCaps vm_memdev(from vm0.memdev, to vm1.memdev);
 
         connection seL4GlobalAsynch u2d(from vm1.intervm_source, to vm0.intervm_sink);
