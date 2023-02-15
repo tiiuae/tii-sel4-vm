@@ -30,6 +30,7 @@ assembly {
          * do not match.
          */
         vm_ctrl.size = VM1_RAM_SIZE;
+        vm_iobuf.size = VM1_RAM_SIZE;
 
         vm0.linux_address_config = {
             "linux_ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
