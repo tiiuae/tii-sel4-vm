@@ -148,7 +148,7 @@ virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
 }
 
 static virtio_qemu_t *pci_devs[16];
-static unsigned int pci_dev_count;
+unsigned int pci_dev_count;
 
 static void register_pci_device(void)
 {

@@ -7,6 +7,8 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
+#include <vm_qemu_virtio/gen_config.h>
+
 #include <camkes.h>
 #include <sel4vm/guest_vm.h>
 #include <sel4vm/guest_memory.h>
@@ -17,6 +19,11 @@
 
 extern uintptr_t linux_ram_base;
 extern size_t linux_ram_size;
+
+#if defined(CONFIG_VM_SWIOTLB)
+uintptr_t swiotlb_gpa;
+size_t swiotlb_size;
+#endif
 
 extern const int vmid;
 
@@ -64,6 +71,24 @@ static void map_dataport(vm_t *vm, struct dataport_cookie *dp)
     ZF_LOGF_IF(err, "mapping dataport \"%s\" failed (%d)", dp->name, err);
 }
 
+#if defined(CONFIG_VM_SWIOTLB)
+static void map_swiotlb(vm_t *vm)
+{
+    struct dataport_cookie dp = {
+        .name = "swiotlb",
+        .gpa = swiotlb_gpa,
+        .size = swiotlb_size,
+        .handle = &memdev_handle,
+    };
+
+    if (!swiotlb_gpa || !swiotlb_size) {
+        ZF_LOGI("Skipping mapping swiotlb dataport");
+        return;
+    }
+
+    map_dataport(vm, &dp);
+};
+#else
 static void map_guest_ram(vm_t *vm)
 {
     struct dataport_cookie dp = {
@@ -75,6 +100,7 @@ static void map_guest_ram(vm_t *vm)
 
     map_dataport(vm, &dp);
 };
+#endif
 
 static void do_init_ram_module(vm_t *vm, void *cookie)
 {
@@ -90,15 +116,22 @@ static void do_init_ram_module(vm_t *vm, void *cookie)
 
 void init_dataport_ram_module(vm_t *vm, void *cookie)
 {
-    if (vmid == 0) {
+    if (vmid == 0 || config_set(CONFIG_VM_SWIOTLB)) {
         ZF_LOGI("mapping guest RAM from untyped memory");
         do_init_ram_module(vm, cookie);
     }
 
+#if defined(CONFIG_VM_SWIOTLB)
+    swiotlb_gpa = strtoul(linux_address_config.swiotlb_gpa, NULL, 0);
+    swiotlb_size = strtoul(linux_address_config.swiotlb_size, NULL, 0);
+
+    map_swiotlb(vm);
+#else
     if (vmid != 0) {
         ZF_LOGI("mapping guest RAM from dataport");
         map_guest_ram(vm);
     }
+#endif
 }
 
 DEFINE_MODULE(init_dataport_ram, NULL, init_dataport_ram_module)

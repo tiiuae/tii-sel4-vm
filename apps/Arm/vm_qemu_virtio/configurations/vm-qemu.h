@@ -1,5 +1,14 @@
 #pragma once
 
+#if defined(VMSWIOTLB)
+#define DEF_SWIOTLB \
+    string swiotlb_gpa = ""; \
+    string swiotlb_size = ""; \
+
+#else
+#define DEF_SWIOTLB
+#endif
+
 #define VM_QEMU_INIT_DEF() \
     control; \
     uses FileServerInterface fs; \
@@ -27,6 +36,7 @@
         string dtb_addr; \
         string initrd_max_size; \
         string initrd_addr; \
+        DEF_SWIOTLB \
     } linux_address_config; \
     attribute { \
         string linux_name = "linux"; \

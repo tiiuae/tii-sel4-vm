@@ -13,17 +13,33 @@
 #define VM0_DTB_ADDR    0x1F000000
 #define VM0_INITRD_ADDR 0x1D000000  // VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
 
+#if defined(VMSWIOTLB)
+#define VM1_RAM_BASE    0x50000000
+#define VM1_RAM_SIZE    0x10000000
+#define VM1_DTB_ADDR    0x5F000000  // VM1_RAM_BASE + 0x0F000000
+#define VM1_INITRD_ADDR 0x5D000000  // VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
+#else
 #define VM1_RAM_BASE    0x48000000
 #define VM1_RAM_SIZE    0x10000000
 #define VM1_DTB_ADDR    0x4F000000  // VM1_RAM_BASE + 0x07000000
 #define VM1_INITRD_ADDR 0x4D000000  // VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
+#endif
 
+#if defined(VMSWIOTLB)
+#define SWIOTLB_GPA     0x48000000
+#define SWIOTLB_SIZE    0x800000        // 8 MB
+#define SWIOTLB_NSLABS  4096            // SWIOTLB_SIZE >> IO_TLB_SHIFT (11)
+#define DATAPORT_SIZE   SWIOTLB_SIZE
+#else
 #define DATAPORT_SIZE   VM1_RAM_SIZE
+#endif
 
 assembly {
     composition {}
     configuration {
+#if !defined(VMSWIOTLB)
         vm_memdev.paddr = VM1_RAM_BASE;
+#endif
         vm_memdev.size = DATAPORT_SIZE;
 
         /* It is important to have equal size for all dataports, otherwise
@@ -54,6 +70,9 @@ assembly {
                 "pci=nomsi "
                 "nosmp "
                 "cma=64M "
+#if defined(VMSWIOTLB)
+                "sel4_use_swiotlb "
+#endif
                 "initcall_blacklist=clk_disable_unused ",
             "linux_stdout" : "/soc/serial@7e215040",
             "dtb_name" : "",
@@ -126,6 +145,10 @@ assembly {
             "dtb_addr" : VAR_STRINGIZE(VM1_DTB_ADDR),
             "initrd_max_size" : VAR_STRINGIZE(VM_INITRD_MAX_SIZE),
             "initrd_addr" : VAR_STRINGIZE(VM1_INITRD_ADDR),
+#if defined(VMSWIOTLB)
+            "swiotlb_gpa" : VAR_STRINGIZE(SWIOTLB_GPA),
+            "swiotlb_size" : VAR_STRINGIZE(SWIOTLB_SIZE),
+#endif
         };
         vm1.linux_image_config = {
             "linux_bootcmdline" :
@@ -136,6 +159,9 @@ assembly {
                 "debug "
                 "loglevel=8 "
                 "pci=nomsi "
+#if defined(VMSWIOTLB)
+                "swiotlb="VAR_STRINGIZE(SWIOTLB_NSLABS)",,force "
+#endif
                 "initcall_blacklist=clk_disable_unused ",
             "linux_stdout" : "hvc0",
             "dtb_name" : "",
@@ -144,8 +170,16 @@ assembly {
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];
+#if defined(VMSWIOTLB)
+        vm1.untyped_mmios = [
+            "0x50000000:28",
+        ];
+#else
         /* Note that RAM is not specified here */
+#endif
         vm1.irqs =  [];
-        vm1.dtb = dtb([{}]);
+        vm1.dtb = dtb([
+            { "path": "/reserved-memory"},
+        ]);
     }
 }
