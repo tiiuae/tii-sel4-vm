@@ -14,8 +14,8 @@
 #include <sel4vmmplatsupport/guest_memory_util.h>
 #include <vmlinux.h>
 
-extern unsigned long linux_ram_base;
-extern unsigned long linux_ram_size;
+extern uintptr_t linux_ram_base;
+extern size_t linux_ram_size;
 
 extern const int vmid;
 
