@@ -13,6 +13,20 @@ include(${CAMKES_ARM_VM_HELPERS_PATH})
 find_package(camkes-vm-linux REQUIRED)
 include(${CAMKES_VM_LINUX_HELPERS_PATH})
 
+set(configure_string "")
+
+config_option(
+    VmVirtioQEMU
+    VM_VIRTIO_QEMU
+    "Enable virtio QEMU module"
+    DEPENDS
+    "KernelPlatformQEMUArmVirt OR KernelPlatformRpi4;VmPCISupport"
+    DEFAULT
+    OFF
+)
+
+add_config_library(vm_qemu_virtio "${configure_string}")
+
 AddToFileServer("linux" "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
 
 set(rootfs_file "${CAMKES_VM_IMAGES_DIR}/rpi4/rootfs.cpio.gz")
@@ -30,6 +44,8 @@ DeclareCAmkESComponent(
     src/qemu.c
     src/trace.c
     src/ioreq.c
+    LIBS
+    vm_qemu_virtio_Config
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
