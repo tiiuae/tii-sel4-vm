@@ -1,6 +1,6 @@
 /*
  * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
- * Copyright 2021 Technology Innovation Institute
+ * Copyright 2021, 2022, 2023 Technology Innovation Institute
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -13,8 +13,6 @@ import <global-connectors.camkes>;
 import <seL4VMDTBPassthrough.idl4>;
 import <FileServerInterface.camkes>;
 import <FileServer/FileServer.camkes>;
-/*import <SerialServer/SerialServer.camkes>;
-import <TimeServer/TimeServer.camkes>;*/
 import <vm-connectors.camkes>;
 import <devices.camkes>;
 
