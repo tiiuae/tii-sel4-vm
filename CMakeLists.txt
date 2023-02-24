@@ -19,6 +19,14 @@ else()
 	message(FATAL_ERROR "Unsupported")
 endif()
 
+CAmkESAddTemplatesPath(templates)
+
+set(CAmkESCPP ON CACHE BOOL "" FORCE)
+
+set(configure_string "")
+
+add_config_library(tii_camkes_vm "${configure_string}")
+
 file(
     GLOB
         tii_camkes_vm_sources
@@ -38,6 +46,7 @@ else()
 endif()
 
 add_library(tii_camkes_vm STATIC EXCLUDE_FROM_ALL ${tii_camkes_vm_sources})
+
 target_include_directories(
     tii_camkes_vm
     PUBLIC include

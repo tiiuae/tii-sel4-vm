@@ -34,7 +34,10 @@ DeclareCAmkESComponent(
     src/ioreq.c
     LIBS
     tii_camkes_vm
+    tii_camkes_vm_Config
     virtioarm
+    TEMPLATE_SOURCES
+    TEMPLATE_HEADERS
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
