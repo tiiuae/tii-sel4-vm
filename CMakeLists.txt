@@ -19,6 +19,14 @@ else()
 	message(FATAL_ERROR "Unsupported")
 endif()
 
+CAmkESAddTemplatesPath(templates)
+
+set(CAmkESCPP ON CACHE BOOL "" FORCE)
+
+set(configure_string "")
+
+add_config_library(tii_camkes_vm "${configure_string}")
+
 file(
     GLOB
         tii_camkes_vm_sources
@@ -48,6 +56,7 @@ target_link_libraries(
     fdt
     sel4_autoconf
     sel4vm
+    tii_camkes_vm_Config
 )
 
 # Add VM application
