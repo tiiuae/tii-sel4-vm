@@ -21,6 +21,22 @@ AddToFileServer("linux-initrd" ${VM_IMAGE_INITRD})
 
 DefineCAmkESVMFileServer()
 
+set(CAmkESCPP ON CACHE BOOL "" FORCE)
+
+set(configure_string "")
+
+config_option(
+    VmVirtioQEMU
+    VM_VIRTIO_QEMU
+    "Enable virtio QEMU module"
+    DEPENDS
+    "KernelPlatformQEMUArmVirt OR KernelPlatformRpi4;VmPCISupport"
+    DEFAULT
+    OFF
+)
+
+add_config_library(vm_qemu_virtio "${configure_string}")
+
 CAmkESAddImportPath(${KernelARMPlatform})
 
 DeclareCAmkESComponent(
@@ -31,6 +47,10 @@ DeclareCAmkESComponent(
     src/qemu.c
     src/trace.c
     src/ioreq.c
+    LIBS
+    vm_qemu_virtio_Config
+    TEMPLATE_SOURCES
+    TEMPLATE_HEADERS
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")

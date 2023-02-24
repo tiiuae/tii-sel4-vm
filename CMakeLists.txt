@@ -17,6 +17,7 @@ if(AppArch STREQUAL "Arm")
 else()
 	message(FATAL_ERROR "Unsupported")
 endif()
+CAmkESAddTemplatesPath(templates)
 # Add VM application
 add_subdirectory("apps/${AppArch}/${CAMKES_VM_APP}")
 # Should be done adding targets, can now generate the root server and the global configuration
