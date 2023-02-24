@@ -1,5 +1,6 @@
 #
 # Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+# Copyright 2022, 2023, Technology Innovation Institute
 #
 # SPDX-License-Identifier: BSD-2-Clause
 #
@@ -22,7 +23,9 @@ DefineCAmkESVMFileServer()
 
 CAmkESAddImportPath(${KernelARMPlatform})
 
-DeclareCAmkESComponent(VM SOURCES
+DeclareCAmkESComponent(
+    VM
+    SOURCES
     src/cross_vm_connection.c
     src/init_dataport_ram.c
     src/qemu.c

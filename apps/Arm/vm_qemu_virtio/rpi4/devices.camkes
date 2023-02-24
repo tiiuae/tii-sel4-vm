@@ -7,16 +7,16 @@
 
 #define GUEST_ENTRY_OFFSET  0x200000
 
-#define VM_INITRD_MAX_SIZE 0x2000000 //32 MB
+#define VM_INITRD_MAX_SIZE  0x2000000   // 32 MB
 
-#define VM0_RAM_BASE 0x10000000
-#define VM0_RAM_SIZE 0x10000000
+#define VM0_RAM_BASE    0x10000000
+#define VM0_RAM_SIZE    0x10000000
 #define VM0_DTB_ADDR    VM0_RAM_BASE + VM0_RAM_SIZE - 0x1000000
 #define VM0_INITRD_ADDR VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM0_ENTRY_ADDR  VM0_RAM_BASE + GUEST_ENTRY_OFFSET
 
-#define VM1_RAM_BASE 0x48000000
-#define VM1_RAM_SIZE 0x10000000
+#define VM1_RAM_BASE    0x48000000
+#define VM1_RAM_SIZE    0x10000000
 #define VM1_DTB_ADDR    VM1_RAM_BASE + VM1_RAM_SIZE - 0x1000000
 #define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
@@ -27,10 +27,9 @@ assembly {
         vm_memdev.paddr = VM1_RAM_BASE;
         vm_memdev.size = VM1_RAM_SIZE;
 
-        /* It is important to have equal size for both vm_memdev and
-         * vm_ctrl, otherwise Linux kernel remaps the PCI devices.
-         * seL4's vPCI does not support that, hence the addresses
-         * do not match.
+        /* It is important to have equal size for all dataports, otherwise
+         * Linux kernel remaps the PCI devices. seL4's vPCI does not
+         * support that and everything would break.
          */
         vm_ctrl.size = VM1_RAM_SIZE;
         vm_iobuf.size = VM1_RAM_SIZE;
