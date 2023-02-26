@@ -6,6 +6,8 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
+#include <vm_qemu_virtio/gen_config.h>
+
 #include <camkes.h>
 #include <vmlinux.h>
 #include <sync/sem.h>
@@ -88,7 +90,7 @@ static void user_pre_load_linux(void)
     ZF_LOGI("driver QEMU up, continuing");
 }
 
-void qemu_initialize_semaphores(vm_t *_vm)
+int pre_load_linux_hook(vm_t *_vm)
 {
     vm = _vm;
 
@@ -97,6 +99,8 @@ void qemu_initialize_semaphores(vm_t *_vm)
     } else {
         user_pre_load_linux();
     }
+
+    return 0;
 }
 
 typedef struct virtio_qemu {

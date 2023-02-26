@@ -42,6 +42,7 @@ DeclareCAmkESComponent(
     VM
     SOURCES
     src/cross_vm_connection.c
+    src/fdt.c
     src/init_dataport_ram.c
     src/qemu.c
     src/trace.c
