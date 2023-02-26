@@ -16,6 +16,10 @@
 #include <utils/util.h>
 
 extern const int vmid;
+extern const int WEAK tracebuffer_base;
+extern const int WEAK tracebuffer_size;
+extern const int WEAK ramoops_base;
+extern const int WEAK ramoops_size;
 
 static int fdt_generate_usb_node(void *fdt)
 {
@@ -90,6 +94,27 @@ int fdt_customize(vm_t *vm, void *gen_fdt)
     int err = fdt_generate_usb_node(gen_fdt);
     if (err) {
         return err;
+    }
+
+    if (&tracebuffer_base && &tracebuffer_size && tracebuffer_base && tracebuffer_size) {
+        err = fdt_generate_reserved_node(gen_fdt, "sel4_tracebuffer",
+                                         "sel4_tracebuffer",
+                                         tracebuffer_base,
+                                         tracebuffer_size, NULL);
+        if (err) {
+            return err;
+        }
+        ZF_LOGD("sel4 tracebuffer node: 0x%lx@0x%lx", tracebuffer_size,
+                tracebuffer_base);
+    }
+
+    if (&ramoops_base && &ramoops_size && ramoops_base && ramoops_size) {
+        err = fdt_generate_reserved_node(gen_fdt, "ramoops", "ramoops",
+                                         ramoops_base, ramoops_size, NULL);
+        if (err) {
+            return err;
+        }
+        ZF_LOGD("ramoops node: 0x%lx@0x%lx", ramoops_size, ramoops_base);
     }
 
     return 0;
