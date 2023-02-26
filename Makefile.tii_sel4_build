@@ -1,6 +1,1 @@
-vm_qemu_virtio:
-	CAMKES_VM_APP=vm_qemu_virtio make build_camkes
-vm_single_test_hvc:
-	CAMKES_VM_APP=vm_single_test_hvc make build_camkes
-vm_single_test_serial:
-	CAMKES_VM_APP=vm_single_test_serial make build_camkes
+TARGETS += $$(basename -a $(shell dirname $(lastword $(MAKEFILE_LIST)))/apps/Arm/vm_*)
