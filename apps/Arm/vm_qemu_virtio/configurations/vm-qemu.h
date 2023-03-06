@@ -9,6 +9,8 @@
 #define DEF_SWIOTLB
 #endif
 
+#define VM_IMAGE_UNLIMITED_SIZE (~(size_t)0)
+
 #define VM_QEMU_INIT_DEF() \
     control; \
     uses FileServerInterface fs; \
@@ -34,17 +36,14 @@
         string linux_ram_size; \
         string linux_ram_offset; \
         string dtb_addr; \
-        string initrd_max_size; \
-        string initrd_addr; \
         DEF_SWIOTLB \
     } linux_address_config; \
+    attribute string images; \
     attribute { \
         string linux_name = "linux"; \
-        string dtb_name = "linux-dtb"; \
-        string initrd_name = "linux-initrd"; \
         string linux_bootcmdline = ""; \
         string linux_stdout = ""; \
-        string dtb_base_name = ""; \
+        int dtb_generate = 1; \
     } linux_image_config; \
     attribute int vmid; \
 

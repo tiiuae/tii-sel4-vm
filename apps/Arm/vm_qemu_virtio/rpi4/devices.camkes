@@ -55,8 +55,6 @@ assembly {
             "linux_ram_size" : VAR_STRINGIZE(VM0_RAM_SIZE),
             "linux_ram_offset" : VAR_STRINGIZE(VM_RAM_OFFSET),
             "dtb_addr" : VAR_STRINGIZE(VM0_DTB_ADDR),
-            "initrd_max_size" : VAR_STRINGIZE(VM_INITRD_MAX_SIZE),
-            "initrd_addr" : VAR_STRINGIZE(VM0_INITRD_ADDR),
         };
         vm0.num_vcpus = 1;
         vm0.linux_image_config = {
@@ -75,9 +73,10 @@ assembly {
 #endif
                 "initcall_blacklist=clk_disable_unused ",
             "linux_stdout" : "/soc/serial@7e215040",
-            "dtb_name" : "",
-            "initrd_name" : "linux-initrd",
         };
+        vm0.images = VM_IMAGES(
+            VM_IMAGE(initrd, "linux-initrd", "raw", VM0_INITRD_ADDR, VM_INITRD_MAX_SIZE)
+        );
         vm0.tracebuffer_base = 0x08800000;
         vm0.tracebuffer_size = 0x200000;
         vm0.mmios = [
@@ -143,8 +142,6 @@ assembly {
             "linux_ram_size" : VAR_STRINGIZE(VM1_RAM_SIZE),
             "linux_ram_offset" : VAR_STRINGIZE(VM_RAM_OFFSET),
             "dtb_addr" : VAR_STRINGIZE(VM1_DTB_ADDR),
-            "initrd_max_size" : VAR_STRINGIZE(VM_INITRD_MAX_SIZE),
-            "initrd_addr" : VAR_STRINGIZE(VM1_INITRD_ADDR),
 #if defined(VMSWIOTLB)
             "swiotlb_gpa" : VAR_STRINGIZE(SWIOTLB_GPA),
             "swiotlb_size" : VAR_STRINGIZE(SWIOTLB_SIZE),
@@ -164,8 +161,6 @@ assembly {
 #endif
                 "initcall_blacklist=clk_disable_unused ",
             "linux_stdout" : "hvc0",
-            "dtb_name" : "",
-            "initrd_name" : "",
         };
         vm1.mmios = [
             "0xff846000:0x1000:12"

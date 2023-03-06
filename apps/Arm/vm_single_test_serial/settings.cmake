@@ -19,7 +19,6 @@ set(VmVirtioConsole OFF CACHE BOOL "" FORCE)
 set(VmVirtioNetArping OFF CACHE BOOL "" FORCE)
 set(VmVirtioNetVirtqueue OFF CACHE BOOL "" FORCE)
 set(VmInitRdFile ON CACHE BOOL "" FORCE)
-set(VmDtbFile OFF CACHE BOOL "" FORCE)
 set(KernelCustomDTS
   "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/dts/rpi4.dts"
   CACHE FILEPATH "" FORCE)
