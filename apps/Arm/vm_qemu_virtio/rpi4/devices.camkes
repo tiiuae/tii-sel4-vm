@@ -21,7 +21,14 @@
 #define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
 
+#if VMSWIOTLB
+#define SWIOTLB_GPA     0x48000000
+#define SWIOTLB_SIZE    0x800000        // 8 MB
+#define SWIOTLB_NSLABS  4096            // SWIOTLB_SIZE >> IO_TLB_SHIFT (11)
+#define DATAPORT_SIZE   SWIOTLB_SIZE
+#else
 #define DATAPORT_SIZE   VM1_RAM_SIZE
+#endif
 
 assembly {
     composition {}
@@ -55,6 +62,9 @@ assembly {
                 "pci=nomsi "
                 "nosmp "
                 "cma=64M "
+#if VMSWIOTLB
+                "sel4_use_swiotlb "
+#endif
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "/soc/serial@7e215040",
             "generate_dtb" : true,
@@ -131,6 +141,12 @@ assembly {
             "initrd_addr" : VAR_STRINGIZE(VM1_INITRD_ADDR),
             "kernel_entry_addr" : VAR_STRINGIZE(VM1_ENTRY_ADDR),
         };
+#if VMSWIOTLB
+        vm1.swiotlb_config = {
+            "gpa" : VAR_STRINGIZE(SWIOTLB_GPA),
+            "size" : VAR_STRINGIZE(SWIOTLB_SIZE),
+        };
+#endif
         vm1.vm_image_config = {
             "kernel_bootcmdline" :
                 "console=hvc0 "
@@ -140,6 +156,9 @@ assembly {
                 "debug "
                 "loglevel=8 "
                 "pci=nomsi "
+#if VMSWIOTLB
+                "swiotlb="VAR_STRINGIZE(SWIOTLB_NSLABS)",,force "
+#endif
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
@@ -150,13 +169,20 @@ assembly {
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];
+#if VMSWIOTLB
+        /* 32 x 16 MB = 512 MB for guest VM, one untyped for generic use */
+        vm1.simple_untyped24_pool = 33;
+#else
         /* this setting predates merging ARM VMM to camkes-vm repo */
         vm1.simple_untyped24_pool = 12;
         /* vm1 guest RAM is mapped from vm_memdev dataport, hence we do not
          * allocate untyped_mmios for it, nor do we increase
          * simple_untyped24_pool.
          */
+#endif
         vm1.irqs =  [];
-        vm1.dtb = dtb([{}]);
+        vm1.dtb = dtb([
+            { "path": "/reserved-memory"},
+        ]);
     }
 }

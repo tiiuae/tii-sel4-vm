@@ -72,6 +72,29 @@ static int map_dataport(vm_t *vm, struct dataport_cookie *dp)
     return 0;
 }
 
+#if defined(CONFIG_VM_SWIOTLB)
+static int map_swiotlb(vm_t *vm)
+{
+    struct dataport_cookie dp = {
+        .name = "swiotlb",
+        .gpa = swiotlb_gpa,
+        .size = swiotlb_size,
+        .handle = &memdev_handle,
+    };
+
+    if (!swiotlb_gpa || !swiotlb_size) {
+        ZF_LOGI("Skipping mapping swiotlb dataport");
+        return 0;
+    }
+
+    return map_dataport(vm, &dp);
+};
+#else
+static int map_swiotlb(vm_t *vm)
+{
+    return 0;
+}
+
 static int map_guest_ram(vm_t *vm)
 {
     struct dataport_cookie dp = {
@@ -83,12 +106,13 @@ static int map_guest_ram(vm_t *vm)
 
     return map_dataport(vm, &dp);
 };
+#endif
 
 void init_dataport_ram_module(vm_t *vm, void *cookie)
 {
     int err;
 
-    if (vmid == 0) {
+    if (vmid == 0 || config_set(CONFIG_VM_SWIOTLB)) {
         err = vm_ram_register_at(vm, ram_base, ram_size, map_one_to_one);
         if (err) {
             ZF_LOGF("Guest RAM mapping failed (%d)", err);
@@ -97,6 +121,9 @@ void init_dataport_ram_module(vm_t *vm, void *cookie)
         ZF_LOGI("Guest RAM mapped from untyped memory");
     }
 
+    map_swiotlb(vm);
+
+#if !defined(CONFIG_VM_SWIOTLB)
     if (vmid != 0) {
         err = map_guest_ram(vm);
         if (err) {
@@ -105,6 +132,7 @@ void init_dataport_ram_module(vm_t *vm, void *cookie)
         }
         ZF_LOGI("Guest RAM mapped from dataport");
     }
+#endif
 }
 
 DEFINE_MODULE(init_dataport_ram, NULL, init_dataport_ram_module)

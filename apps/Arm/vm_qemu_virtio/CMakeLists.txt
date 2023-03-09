@@ -13,6 +13,10 @@ include(${CAMKES_ARM_VM_HELPERS_PATH})
 find_package(camkes-vm-linux REQUIRED)
 include(${CAMKES_VM_LINUX_HELPERS_PATH})
 
+set(CAmkESCPP ON CACHE BOOL "" FORCE)
+
+AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmSWIOTLB)
+
 set(configure_string "")
 
 config_option(
@@ -23,6 +27,16 @@ config_option(
     "KernelPlatformQEMUArmVirt OR KernelPlatformRpi4;VmPCISupport"
     DEFAULT
     OFF
+)
+
+config_option(
+    VmSWIOTLB
+    VM_SWIOTLB
+    "Use SWIOTLB instead of exposing whole guest RAM to host"
+    DEPENDS
+    "VmVirtioQEMU"
+    DEFAULT
+    ON
 )
 
 add_config_library(vm_qemu_virtio "${configure_string}")
@@ -47,8 +61,11 @@ DeclareCAmkESComponent(
     src/ioreq.c
     LIBS
     vm_qemu_virtio_Config
+    virtioarm
     TEMPLATE_SOURCES
+    seL4VMSWIOTLBParameters.template.c
     TEMPLATE_HEADERS
+    seL4VMSWIOTLBParameters.template.h
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
