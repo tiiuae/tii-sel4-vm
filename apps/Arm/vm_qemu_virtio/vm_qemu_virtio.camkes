@@ -13,8 +13,8 @@ import <global-connectors.camkes>;
 import <seL4VMDTBPassthrough.idl4>;
 import <FileServerInterface.camkes>;
 import <FileServer/FileServer.camkes>;
-/*import <SerialServer/SerialServer.camkes>;
-import <TimeServer/TimeServer.camkes>;*/
+import <SerialServer/SerialServer.camkes>;
+import <TimeServer/TimeServer.camkes>;
 import <vm-connectors.camkes>;
 import <devices.camkes>;
 
