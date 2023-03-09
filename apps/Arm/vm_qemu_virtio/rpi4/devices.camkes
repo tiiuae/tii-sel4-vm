@@ -22,8 +22,16 @@
 #define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
 
+#if VMSWIOTLB
+#define SWIOTLB_BASE    0x48000000
+#define SWIOTLB_SIZE    0x800000        // 8 MB
+#define SWIOTLB_NSLABS  4096            // SWIOTLB_SIZE >> IO_TLB_SHIFT (11)
+#define VIRTIO_FE_BASE  SWIOTLB_BASE
+#define VIRTIO_FE_SIZE  SWIOTLB_SIZE
+#else
 #define VIRTIO_FE_BASE  VM1_RAM_BASE
 #define VIRTIO_FE_SIZE  VM1_RAM_SIZE
+#endif
 
 #define PCIE_MMIO_BASE  0x60000000
 #define PCIE_MMIO_SIZE  0x10000000
@@ -156,6 +164,9 @@ assembly {
                 "debug "
                 "loglevel=8 "
                 "pci=nomsi "
+#if VMSWIOTLB
+                "swiotlb="VAR_STRINGIZE(SWIOTLB_NSLABS)",,force "
+#endif
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
@@ -170,12 +181,19 @@ assembly {
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];
+#if VMSWIOTLB
+        /* additional 16 x 16 MB = 256 MB to use as guest RAM */
+        vm1.simple_untyped24_pool = 28;
+#else
         vm1.simple_untyped24_pool = 12;
         /* vm1 guest RAM is mapped from vm_virtio_fe dataport, hence we do not
          * allocate untyped_mmios for it, nor do we increase
          * simple_untyped24_pool.
          */
+#endif
         vm1.irqs =  [];
-        vm1.dtb = dtb([{}]);
+        vm1.dtb = dtb([
+            { "path": "/reserved-memory"},
+        ]);
     }
 }
