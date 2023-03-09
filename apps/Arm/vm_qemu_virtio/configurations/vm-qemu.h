@@ -1,41 +1,13 @@
 #pragma once
 
+#include <configurations/vm.h>
+
 #define VM_QEMU_INIT_DEF() \
-    control; \
-    uses FileServerInterface fs; \
-    DEF_TK1DEVICEFWD \
-    DEF_KERNELARMPLATFORM_EXYNOS5410 \
-    maybe consumes restart restart_event; \
-    has semaphore vm_sem; \
-    consumes HaveNotification notification_ready; \
-    emits HaveNotification notification_ready_connector; \
-    maybe uses VMDTBPassthrough dtb_self; \
-    provides VMDTBPassthrough dtb; \
-    attribute int base_prio; \
-    attribute int num_vcpus = 1; \
-    attribute int num_extra_frame_caps; \
-    attribute int extra_frame_map_address; \
+    VM_INIT_DEF() \
     attribute int tracebuffer_base; \
     attribute int tracebuffer_size; \
     attribute int ramoops_base; \
     attribute int ramoops_size; \
-    attribute { \
-        string linux_ram_base; \
-        string linux_ram_paddr_base; \
-        string linux_ram_size; \
-        string linux_ram_offset; \
-        string dtb_addr; \
-        string initrd_max_size; \
-        string initrd_addr; \
-    } linux_address_config; \
-    attribute { \
-        string linux_name = "linux"; \
-        string dtb_name = "linux-dtb"; \
-        string initrd_name = "linux-initrd"; \
-        string linux_bootcmdline = ""; \
-        string linux_stdout = ""; \
-        string dtb_base_name = ""; \
-    } linux_image_config; \
     attribute int vmid; \
 
 #define VM_QEMU_CONFIGURATION_DEF(num) \
