@@ -11,6 +11,10 @@
     attribute int guest_large_pages = false; \
     attribute int cross_connector_large_pages = false; \
     attribute int vmid; \
+    attribute { \
+        string swiotlb_base = ""; \
+        string swiotlb_size = ""; \
+    } swiotlb_config; \
 
 #define VM_QEMU_CONFIGURATION_DEF(num) \
     vm##num.fs_shmem_size = 0x100000; \
