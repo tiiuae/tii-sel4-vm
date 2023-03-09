@@ -13,8 +13,8 @@ import <global-connectors.camkes>;
 import <seL4VMDTBPassthrough.idl4>;
 import <FileServerInterface.camkes>;
 import <FileServer/FileServer.camkes>;
-/*import <SerialServer/SerialServer.camkes>;
-import <TimeServer/TimeServer.camkes>;*/
+import <SerialServer/SerialServer.camkes>;
+import <TimeServer/TimeServer.camkes>;
 import <vm-connectors.camkes>;
 import <devices.camkes>;
 
@@ -57,14 +57,12 @@ assembly {
         vm0.num_extra_frame_caps = 0;
         vm0.extra_frame_map_address = 0;
         vm0.cnode_size_bits = 23;
-        vm0.simple_untyped24_pool = 12;
         vm0.base_prio = 100;
         vm0._priority = 121;
 
         vm1.num_extra_frame_caps = 0;
         vm1.extra_frame_map_address = 0;
         vm1.cnode_size_bits = 23;
-        vm1.simple_untyped24_pool = 12;
 
         vm1.base_prio = 100;
         vm1._priority = 101;
