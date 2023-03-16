@@ -24,6 +24,17 @@
 #define MEMDEV_BASE     VM1_RAM_BASE
 #define MEMDEV_SIZE     VM1_RAM_SIZE
 
+#define PCIE_MMIO_BASE  0x60000000
+#define PCIE_MMIO_SIZE  0x10000000
+
+#define USERVM_BOOTARG(_id, _memdev_base, _memdev_size, _pcie_mmio_base, _pcie_mmio_size) \
+    "uservm=" \
+        VAR_STRINGIZE(_id) "," \
+        VAR_STRINGIZE(_memdev_base) "," \
+        VAR_STRINGIZE(_memdev_size) "," \
+        VAR_STRINGIZE(_pcie_mmio_base) "," \
+        VAR_STRINGIZE(_pcie_mmio_size) " "
+
 assembly {
     composition {}
     configuration {
@@ -56,6 +67,7 @@ assembly {
                 "pci=nomsi "
                 "nosmp "
                 "cma=64M "
+                USERVM_BOOTARG(1, MEMDEV_BASE, MEMDEV_SIZE, PCIE_MMIO_BASE, PCIE_MMIO_SIZE)
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "/soc/serial@7e215040",
             "generate_dtb" : true,
