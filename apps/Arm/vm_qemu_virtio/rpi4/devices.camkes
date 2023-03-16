@@ -1,57 +1,88 @@
 /*
- * Copyright 2022, Technology Innovation Institute
+ * Copyright 2022, 2023, Technology Innovation Institute
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <configurations/vm.h>
 
-#define VM_RAM_OFFSET 0
-#define VM_INITRD_MAX_SIZE 0x2000000 //32 MB
+#define VM_INITRD_MAX_SIZE  0x2000000   // 32 MB
 
-#define VM0_RAM_BASE 0x10000000
-#define VM0_RAM_SIZE 0x10000000
-#define VM0_DTB_ADDR 0x1F000000
-#define VM0_INITRD_ADDR 0x1D000000 //VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define GUEST_ENTRY_OFFSET  0x200000
 
-#define VM1_RAM_BASE 0x48000000
-#define VM1_RAM_SIZE 0x10000000
-#define VM1_DTB_ADDR 0x4F000000 //VM1_RAM_BASE + 0x7000000
-#define VM1_INITRD_ADDR 0x4D000000 //VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM0_RAM_BASE    0x10000000
+#define VM0_RAM_SIZE    0x10000000
+#define VM0_DTB_ADDR    VM0_RAM_BASE + VM0_RAM_SIZE - 0x1000000
+#define VM0_INITRD_ADDR VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM0_ENTRY_ADDR  VM0_RAM_BASE + GUEST_ENTRY_OFFSET
+
+#define VM1_RAM_BASE    0x50000000
+#define VM1_RAM_SIZE    0x10000000
+#define VM1_DTB_ADDR    VM1_RAM_BASE + VM1_RAM_SIZE - 0x0100000
+#define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
+
+#if VMSWIOTLB
+#define SWIOTLB_GPA     0x48000000
+#define SWIOTLB_SIZE    0x800000        // 8 MB
+#define SWIOTLB_NSLABS  4096            // SWIOTLB_SIZE >> IO_TLB_SHIFT (11)
+#define DATAPORT_SIZE   SWIOTLB_SIZE
+#define USERVM_BASE     SWIOTLB_GPA
+#else
+#define DATAPORT_SIZE   VM1_RAM_SIZE
+#define USERVM_BASE     VM1_RAM_BASE
+#endif
+
+#define PCIE_MMIO_BASE  0x60000000
+#define PCIE_MMIO_SIZE  0x10000000
+
+#define USERVM_BOOTARG(_id, _ram_base, _ram_size, _pcie_mmio_base, _pcie_mmio_size) \
+    "uservm=" \
+        VAR_STRINGIZE(_id) "," \
+        VAR_STRINGIZE(_ram_base) "," \
+        VAR_STRINGIZE(_ram_size) "," \
+        VAR_STRINGIZE(_pcie_mmio_base) "," \
+        VAR_STRINGIZE(_pcie_mmio_size) " "
 
 assembly {
     composition {}
     configuration {
-        vm_memdev.paddr = VM1_RAM_BASE;
-        vm_memdev.size = VM1_RAM_SIZE;
+        vm_memdev.size = DATAPORT_SIZE;
 
-        /* It is important to have equal size for both vm_memdev and
-         * vm_ctrl, otherwise Linux kernel remaps the PCI devices.
-         * seL4's vPCI does not support that, hence the addresses
-         * do not match.
+        /* It is important to have equal size for all dataports, otherwise
+         * Linux kernel remaps the PCI devices. seL4's vPCI does not
+         * support that and everything would break.
          */
-        vm_ctrl.size = VM1_RAM_SIZE;
-        vm_iobuf.size = VM1_RAM_SIZE;
+        vm_ctrl.size = DATAPORT_SIZE;
+        vm_iobuf.size = DATAPORT_SIZE;
 
-        vm0.linux_address_config = {
-            "linux_ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
-            "linux_ram_paddr_base" : VAR_STRINGIZE(VM0_RAM_BASE),
-            "linux_ram_size" : VAR_STRINGIZE(VM0_RAM_SIZE),
-            "linux_ram_offset" : VAR_STRINGIZE(VM_RAM_OFFSET),
+        vm0.vm_address_config = {
+            "ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
+            "ram_paddr_base" : VAR_STRINGIZE(VM0_RAM_BASE),
+            "ram_size" : VAR_STRINGIZE(VM0_RAM_SIZE),
             "dtb_addr" : VAR_STRINGIZE(VM0_DTB_ADDR),
-            "initrd_max_size" : VAR_STRINGIZE(VM_INITRD_MAX_SIZE),
             "initrd_addr" : VAR_STRINGIZE(VM0_INITRD_ADDR),
+            "kernel_entry_addr" : VAR_STRINGIZE(VM0_ENTRY_ADDR),
         };
         vm0.num_vcpus = 1;
-        vm0.linux_image_config = {
-            "linux_bootcmdline" : "console=ttyS0,115200 \
-                earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 \
-                rw debug loglevel=7 \
-                pci=nomsi initcall_blacklist=clk_disable_unused nosmp \
-                cma=64M",
-            "linux_stdout" : "/soc/serial@7e215040",
-            "dtb_name" : "",
-            "initrd_name" : "linux-initrd",
+        vm0.vm_image_config = {
+            "kernel_bootcmdline" :
+                "console=ttyS0,115200 "
+                "earlycon=uart8250,mmio32,0xfe215040 "
+                "8250.nr_uarts=1 "
+                "rw "
+                "debug "
+                "loglevel=7 "
+                "pci=nomsi "
+                "nosmp "
+                "cma=64M "
+                USERVM_BOOTARG(1, USERVM_BASE, DATAPORT_SIZE, PCIE_MMIO_BASE, PCIE_MMIO_SIZE)
+                "initcall_blacklist=clk_disable_unused ",
+            "kernel_stdout" : "/soc/serial@7e215040",
+            "generate_dtb" : true,
+            "provide_dtb" : false,
+            "map_one_to_one" : true,
         };
+        vm0.cross_connector_large_pages = true;
         vm0.tracebuffer_base = 0x08800000;
         vm0.tracebuffer_size = 0x200000;
         vm0.mmios = [
@@ -61,6 +92,8 @@ assembly {
             "0x10000000:28",  // RAM
             "0x600000000:33", // PCIe
         ];
+        /* this setting predates merging ARM VMM to camkes-vm repo */
+        vm0.simple_untyped24_pool = 12;
         vm0.irqs =  [];
         vm0.dtb = dtb([
             { "path": "/soc/mailbox@7e00b880" },
@@ -111,26 +144,56 @@ assembly {
             { "path": "/reserved-memory"},
         ]);
 
-        vm1.linux_address_config = {
-            "linux_ram_base" : VAR_STRINGIZE(VM1_RAM_BASE),
-            "linux_ram_paddr_base" : VAR_STRINGIZE(VM1_RAM_BASE),
-            "linux_ram_size" : VAR_STRINGIZE(VM1_RAM_SIZE),
-            "linux_ram_offset" : VAR_STRINGIZE(VM_RAM_OFFSET),
+        vm1.vm_address_config = {
+            "ram_base" : VAR_STRINGIZE(VM1_RAM_BASE),
+            "ram_paddr_base" : VAR_STRINGIZE(VM1_RAM_BASE),
+            "ram_size" : VAR_STRINGIZE(VM1_RAM_SIZE),
             "dtb_addr" : VAR_STRINGIZE(VM1_DTB_ADDR),
-            "initrd_max_size" : VAR_STRINGIZE(VM_INITRD_MAX_SIZE),
             "initrd_addr" : VAR_STRINGIZE(VM1_INITRD_ADDR),
+            "kernel_entry_addr" : VAR_STRINGIZE(VM1_ENTRY_ADDR),
         };
-        vm1.linux_image_config = {
-            "linux_bootcmdline" : "console=hvc0 earlycon=hvc0 root=/dev/vda2 rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
-            "linux_stdout" : "hvc0",
-            "dtb_name" : "",
-            "initrd_name" : "",
+#if VMSWIOTLB
+        vm1.swiotlb_config = {
+            "gpa" : VAR_STRINGIZE(SWIOTLB_GPA),
+            "size" : VAR_STRINGIZE(SWIOTLB_SIZE),
         };
+#endif
+        vm1.vm_image_config = {
+            "kernel_bootcmdline" :
+                "console=hvc0 "
+                "earlycon=pl011,mmio32,0x09000000 "
+                "root=/dev/vda2 "
+                "rw "
+                "debug "
+                "loglevel=8 "
+                "pci=nomsi "
+#if VMSWIOTLB
+                "swiotlb="VAR_STRINGIZE(SWIOTLB_NSLABS)",,force "
+#endif
+                "initcall_blacklist=clk_disable_unused ",
+            "kernel_stdout" : "hvc0",
+            "provide_initrd" : false,
+            "generate_dtb" : true,
+            "provide_dtb" : false,
+        };
+        vm1.guest_large_pages = true;
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];
-        /* Note that RAM is not specified here */
+#if VMSWIOTLB
+        /* 32 x 16 MB = 512 MB for guest VM, one untyped for generic use */
+        vm1.simple_untyped24_pool = 33;
+#else
+        /* this setting predates merging ARM VMM to camkes-vm repo */
+        vm1.simple_untyped24_pool = 12;
+        /* vm1 guest RAM is mapped from vm_memdev dataport, hence we do not
+         * allocate untyped_mmios for it, nor do we increase
+         * simple_untyped24_pool.
+         */
+#endif
         vm1.irqs =  [];
-        vm1.dtb = dtb([{}]);
+        vm1.dtb = dtb([
+            { "path": "/reserved-memory"},
+        ]);
     }
 }

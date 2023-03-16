@@ -1,5 +1,6 @@
 #
 # Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+# Copyright 2022, 2023, Technology Innovation Institute
 #
 # SPDX-License-Identifier: BSD-2-Clause
 #
@@ -12,6 +13,34 @@ include(${CAMKES_ARM_VM_HELPERS_PATH})
 find_package(camkes-vm-linux REQUIRED)
 include(${CAMKES_VM_LINUX_HELPERS_PATH})
 
+set(CAmkESCPP ON CACHE BOOL "" FORCE)
+
+AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmSWIOTLB)
+
+set(configure_string "")
+
+config_option(
+    VmVirtioQEMU
+    VM_VIRTIO_QEMU
+    "Enable virtio QEMU module"
+    DEPENDS
+    "KernelPlatformQEMUArmVirt OR KernelPlatformRpi4;VmPCISupport"
+    DEFAULT
+    OFF
+)
+
+config_option(
+    VmSWIOTLB
+    VM_SWIOTLB
+    "Use SWIOTLB instead of exposing whole guest RAM to host"
+    DEPENDS
+    "VmVirtioQEMU"
+    DEFAULT
+    ON
+)
+
+add_config_library(vm_qemu_virtio "${configure_string}")
+
 AddToFileServer("linux" "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
 
 set(rootfs_file "${CAMKES_VM_IMAGES_DIR}/rpi4/rootfs.cpio.gz")
@@ -21,12 +50,22 @@ DefineCAmkESVMFileServer()
 
 CAmkESAddImportPath(${KernelARMPlatform})
 
-DeclareCAmkESComponent(VM SOURCES
+DeclareCAmkESComponent(
+    VM
+    SOURCES
     src/cross_vm_connection.c
+    src/fdt.c
     src/init_dataport_ram.c
     src/qemu.c
     src/trace.c
     src/ioreq.c
+    LIBS
+    vm_qemu_virtio_Config
+    virtioarm
+    TEMPLATE_SOURCES
+    seL4VMSWIOTLBParameters.template.c
+    TEMPLATE_HEADERS
+    seL4VMSWIOTLBParameters.template.h
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
