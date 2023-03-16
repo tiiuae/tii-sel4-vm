@@ -26,9 +26,22 @@
 #define SWIOTLB_SIZE    0x800000        // 8 MB
 #define SWIOTLB_NSLABS  4096            // SWIOTLB_SIZE >> IO_TLB_SHIFT (11)
 #define DATAPORT_SIZE   SWIOTLB_SIZE
+#define USERVM_BASE     SWIOTLB_GPA
 #else
 #define DATAPORT_SIZE   VM1_RAM_SIZE
+#define USERVM_BASE     VM1_RAM_BASE
 #endif
+
+#define PCIE_MMIO_BASE  0x60000000
+#define PCIE_MMIO_SIZE  0x10000000
+
+#define USERVM_BOOTARG(_id, _ram_base, _ram_size, _pcie_mmio_base, _pcie_mmio_size) \
+    "uservm=" \
+        VAR_STRINGIZE(_id) "," \
+        VAR_STRINGIZE(_ram_base) "," \
+        VAR_STRINGIZE(_ram_size) "," \
+        VAR_STRINGIZE(_pcie_mmio_base) "," \
+        VAR_STRINGIZE(_pcie_mmio_size) " "
 
 assembly {
     composition {}
@@ -62,9 +75,7 @@ assembly {
                 "pci=nomsi "
                 "nosmp "
                 "cma=64M "
-#if VMSWIOTLB
-                "sel4_use_swiotlb "
-#endif
+                USERVM_BOOTARG(1, USERVM_BASE, DATAPORT_SIZE, PCIE_MMIO_BASE, PCIE_MMIO_SIZE)
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "/soc/serial@7e215040",
             "generate_dtb" : true,
