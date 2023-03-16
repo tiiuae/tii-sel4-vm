@@ -133,12 +133,20 @@ void trace_init(vm_t *vm)
         trace_init_shared_mem(vm, "sel4buf_mem", tracebuffer_base, sel4buf_mem_size_bits,
                 kernel_trace_frame, &kernel_trace_vm, &kernel_trace);
 
+#ifdef CONFIG_ENABLE_LOG_BUFFER_EXPANSION
         for (int i = 0; i < NUM_BUFFER_FRAME; i++){
-            int error = seL4_BenchmarkSetLogBuffer(kernel_trace_frame[i].cptr);
+            seL4_SetMR(0, i);
+            int error = seL4_BenchmarkSetLargeLogBuffer(kernel_trace_frame[i].cptr,seL4_MessageInfo_new(0, 0, 0, 1));
             if (error) {
                 ZF_LOGF("Cannot set kernel log buffer");
             }
         }
+#else 
+        int error = seL4_BenchmarkSetLogBuffer(kernel_trace_frame[0].cptr);
+        if (error) {
+            ZF_LOGF("Cannot set kernel log buffer");
+        }
+#endif /* CONFIG_ENABLE_LOG_BUFFER_EXPANSION */
 
     }
 }
