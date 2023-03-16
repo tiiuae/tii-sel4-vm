@@ -15,7 +15,7 @@
 #define VM0_INITRD_ADDR VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM0_ENTRY_ADDR  VM0_RAM_BASE + GUEST_ENTRY_OFFSET
 
-#define VM1_RAM_BASE    0x48000000
+#define VM1_RAM_BASE    0x50000000
 #define VM1_RAM_SIZE    0x10000000
 #define VM1_DTB_ADDR    VM1_RAM_BASE + VM1_RAM_SIZE - 0x1000000
 #define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
@@ -63,6 +63,7 @@ assembly {
             "provide_dtb" : false,
             "map_one_to_one" : true,
         };
+        vm0.cross_connector_large_pages = true;
         vm0.tracebuffer_base = 0x08800000;
         vm0.tracebuffer_size = 0x200000;
         vm0.mmios = [
@@ -147,6 +148,7 @@ assembly {
             "generate_dtb" : true,
             "provide_dtb" : false,
         };
+        vm1.guest_large_pages = true;
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];
