@@ -28,7 +28,6 @@
 assembly {
     composition {}
     configuration {
-        vm_virtio_fe.paddr = VIRTIO_FE_BASE;
         vm_virtio_fe.size = VIRTIO_FE_SIZE;
 
         /* It is important to have equal size for all dataports, otherwise
