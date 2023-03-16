@@ -26,7 +26,6 @@
 assembly {
     composition {}
     configuration {
-        vm_memdev.paddr = VM1_RAM_BASE;
         vm_memdev.size = DATAPORT_SIZE;
 
         /* It is important to have equal size for all dataports, otherwise
