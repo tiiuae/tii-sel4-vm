@@ -61,6 +61,7 @@ assembly {
             "provide_dtb" : false,
             "map_one_to_one" : true,
         };
+        vm0.cross_connector_large_pages = true;
         vm0.tracebuffer_base = 0x08800000;
         vm0.tracebuffer_size = 0x200000;
         vm0.mmios = [
@@ -144,6 +145,7 @@ assembly {
             "generate_dtb" : true,
             "provide_dtb" : false,
         };
+        vm1.guest_large_pages = true;
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];

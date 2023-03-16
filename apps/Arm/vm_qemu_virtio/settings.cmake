@@ -1,5 +1,6 @@
 #
 # Copyright 2018, Data61, CSIRO (ABN 41 687 119 230)
+# Copyright 2022, 2023, Technology Innovation Institute
 #
 # SPDX-License-Identifier: BSD-2-Clause
 #
@@ -13,7 +14,6 @@ set(LibUSB OFF CACHE BOOL "" FORCE)
 set(VmPCISupport ON CACHE BOOL "" FORCE)
 set(VmVirtioConsole OFF CACHE BOOL "" FORCE)
 set(VmVirtioQEMU ON CACHE BOOL "" FORCE)
-set(LibSel4VMAlignLPHack ON CACHE BOOL "" FORCE)
 set(VmVirtioNetArping OFF CACHE BOOL "" FORCE)
 set(VmVirtioNetVirtqueue OFF CACHE BOOL "" FORCE)
 set(VmInitRdFile ON CACHE BOOL "" FORCE)
