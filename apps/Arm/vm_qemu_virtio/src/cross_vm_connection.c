@@ -39,8 +39,6 @@ static int consume_callback(vm_t *vm, void *cookie)
     return 0;
 }
 
-extern unsigned long linux_ram_base;
-
 /* VM1 does not define this */
 seL4_Word WEAK intervm_sink_notification_badge(void);
 
