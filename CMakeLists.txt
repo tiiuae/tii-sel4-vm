@@ -8,6 +8,9 @@ cmake_minimum_required(VERSION 3.8.2)
 include(settings.cmake)
 project(camkes-vm C CXX ASM)
 
+set(TII_SEL4_VM_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE STRING "")
+mark_as_advanced(TII_SEL4_VM_DIR)
+
 if(AppArch STREQUAL "Arm")
 	find_package(camkes-arm-vm REQUIRED)
 	camkes_arm_vm_setup_arm_vm_environment()

@@ -9,13 +9,14 @@ cmake_minimum_required(VERSION 3.8.2)
 project(vm-qemu-virtio C)
 
 include(${CAMKES_ARM_VM_HELPERS_PATH})
-find_package(camkes-vm-linux REQUIRED)
-include(${CAMKES_VM_LINUX_HELPERS_PATH})
+# Let's make assumption for the workspace layout. Can be overridden in cmake
+# invocation/cmake cache editor
+set(VM_IMAGES_DIR "${TII_SEL4_VM_DIR}/../../vm-images/build/tmp/deploy/images/vm-raspberrypi4-64" CACHE STRING "")
+set(VM_IMAGE_LINUX "${VM_IMAGES_DIR}/Image" CACHE STRING "VM kernel image")
+set(VM_IMAGE_INITRD "${VM_IMAGES_DIR}/vm-image-boot-vm-raspberrypi4-64.cpio.gz" CACHE STRING "VM initramfs")
 
-AddToFileServer("linux" "${CAMKES_VM_IMAGES_DIR}/${KernelARMPlatform}/linux")
-
-set(rootfs_file "${CAMKES_VM_IMAGES_DIR}/rpi4/rootfs.cpio.gz")
-AddToFileServer("linux-initrd" ${rootfs_file} )
+AddToFileServer("linux" "${VM_IMAGE_LINUX}")
+AddToFileServer("linux-initrd" ${VM_IMAGE_INITRD})
 
 DefineCAmkESVMFileServer()
 
