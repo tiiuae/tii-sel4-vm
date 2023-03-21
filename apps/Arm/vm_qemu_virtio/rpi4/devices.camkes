@@ -65,6 +65,7 @@ assembly {
             "0x10000000:28",  // RAM
             "0x600000000:33", // PCIe
         ];
+        vm0.simple_untyped24_pool = 12;
         vm0.irqs =  [];
         vm0.dtb = dtb([
             { "path": "/soc/mailbox@7e00b880" },
@@ -133,6 +134,7 @@ assembly {
         vm1.mmios = [
             "0xff846000:0x1000:12"
         ];
+        vm1.simple_untyped24_pool = 12;
         /* Note that RAM is not specified here */
         vm1.irqs =  [];
         vm1.dtb = dtb([{}]);
