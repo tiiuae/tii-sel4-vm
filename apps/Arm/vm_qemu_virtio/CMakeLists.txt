@@ -49,6 +49,7 @@ DeclareCAmkESComponent(
     src/trace.c
     src/ioreq.c
     LIBS
+    virtioarm
     vm_qemu_virtio_Config
     TEMPLATE_SOURCES
     TEMPLATE_HEADERS
