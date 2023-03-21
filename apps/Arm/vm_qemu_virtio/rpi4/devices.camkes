@@ -148,6 +148,10 @@ assembly {
             "generate_dtb" : true,
             "provide_dtb" : false,
         };
+        vm1.virtio_config = {
+            "base" : VAR_STRINGIZE(VIRTIO_FE_BASE),
+            "size" : VAR_STRINGIZE(VIRTIO_FE_SIZE),
+        };
         vm1.guest_large_pages = true;
         vm1.mmios = [
             "0xff846000:0x1000:12"

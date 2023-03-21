@@ -52,7 +52,9 @@ DeclareCAmkESComponent(
     virtioarm
     vm_qemu_virtio_Config
     TEMPLATE_SOURCES
+    seL4VMSWIOTLBParameters.template.c
     TEMPLATE_HEADERS
+    seL4VMSWIOTLBParameters.template.h
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
