@@ -23,19 +23,17 @@ static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
 {
     cspacepath_t return_frame;
     vm_frame_t frame_result = { seL4_CapNull, seL4_NoRights, 0, 0 };
-
-    int sz = seL4_PageBits;
-    if (addr >= ram_base && addr < (ram_base + ram_size)) {
-        sz = seL4_LargePageBits;
-    }
+    /* TODO: get size from seL4SharedDataWithCaps */
+    int sz = seL4_LargePageBits;
 
     uintptr_t frame_start = ROUND_DOWN(addr, BIT(sz));
-    if (frame_start < ram_base || frame_start > ram_base + ram_size) {
+    if (frame_start < virtio_fe_base ||
+        frame_start - virtio_fe_base >= virtio_fe_size) {
         ZF_LOGE("Error: Not dataport ram region");
         return frame_result;
     }
 
-    int page_idx = (frame_start - ram_base) / BIT(sz);
+    int page_idx = (frame_start - virtio_fe_base) / BIT(sz);
     frame_result.cptr = dataport_get_nth_frame_cap(&virtio_fe_handle, page_idx);
     frame_result.rights = seL4_AllRights;
     frame_result.vaddr = frame_start;
@@ -49,18 +47,28 @@ static void original_init_ram_module(vm_t *vm, void *cookie)
     assert(!err);
 }
 
+static bool map_ram_from_dataport(void)
+{
+    if (vmid == 0) {
+        return false;
+    }
+    assert(ram_base == virtio_fe_base);
+    assert(ram_size == virtio_fe_size);
+    /* TODO: handle map_one_to_one */
+    return true;
+}
+
 void init_ram_module(vm_t *vm, void *cookie)
 {
     int err;
 
-    if (vmid == 0) {
-        ZF_LOGI("initializing RAM module the old way");
+    if (!map_ram_from_dataport()) {
+        ZF_LOGI("mapping RAM from untyped memory");
         original_init_ram_module(vm, cookie);
         return;
     }
 
-    ZF_LOGI("initializing RAM module from dataport");
-
+    ZF_LOGI("mapping RAM from dataport");
     err = vm_ram_register_at_custom_iterator(vm, ram_base, ram_size, dataport_memory_iterator, NULL);
     assert(!err);
 }
