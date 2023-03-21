@@ -1,6 +1,6 @@
 /*
  * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
- * Copyright 2021 Technology Innovation Institute
+ * Copyright 2021, 2022, 2023 Technology Innovation Institute
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -57,14 +57,12 @@ assembly {
         vm0.num_extra_frame_caps = 0;
         vm0.extra_frame_map_address = 0;
         vm0.cnode_size_bits = 23;
-        vm0.simple_untyped24_pool = 12;
         vm0.base_prio = 100;
         vm0._priority = 121;
 
         vm1.num_extra_frame_caps = 0;
         vm1.extra_frame_map_address = 0;
         vm1.cnode_size_bits = 23;
-        vm1.simple_untyped24_pool = 12;
 
         vm1.base_prio = 100;
         vm1._priority = 101;
