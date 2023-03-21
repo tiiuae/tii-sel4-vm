@@ -46,11 +46,17 @@ assembly {
         };
         vm0.num_vcpus = 1;
         vm0.vm_image_config = {
-            "kernel_bootcmdline" : "console=ttyS0,115200 \
-                earlycon=uart8250,mmio32,0xfe215040 8250.nr_uarts=1 \
-                rw debug loglevel=7 \
-                pci=nomsi initcall_blacklist=clk_disable_unused nosmp \
-                cma=64M",
+            "kernel_bootcmdline" :
+                "console=ttyS0,115200 "
+                "earlycon=uart8250,mmio32,0xfe215040 "
+                "8250.nr_uarts=1 "
+                "rw "
+                "debug "
+                "loglevel=7 "
+                "pci=nomsi "
+                "nosmp "
+                "cma=64M "
+                "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "/soc/serial@7e215040",
             "generate_dtb" : true,
             "provide_dtb" : false,
@@ -125,7 +131,15 @@ assembly {
             "kernel_entry_addr" : VAR_STRINGIZE(VM1_ENTRY_ADDR),
         };
         vm1.vm_image_config = {
-            "kernel_bootcmdline" : "console=hvc0 earlycon=hvc0 root=/dev/vda2 rw debug loglevel=8 pci=nomsi initcall_blacklist=clk_disable_unused",
+            "kernel_bootcmdline" :
+                "console=hvc0 "
+                "earlycon=hvc0 "
+                "root=/dev/vda2 "
+                "rw "
+                "debug "
+                "loglevel=8 "
+                "pci=nomsi "
+                "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
             "generate_dtb" : true,
