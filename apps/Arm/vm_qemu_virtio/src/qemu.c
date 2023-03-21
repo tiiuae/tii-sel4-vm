@@ -1,5 +1,5 @@
 /*
- * Copyright 2022, Technology Innovation Institute
+ * Copyright 2022, 2023, Technology Innovation Institute
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -34,7 +34,6 @@
 
 extern void *ctrl;
 extern void *iobuf;
-extern void *memdev;
 
 /* VM0 does not have these */
 int WEAK intervm_sink_reg_callback(void (*)(void *), void *);

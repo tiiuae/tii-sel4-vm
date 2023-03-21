@@ -7,7 +7,6 @@
 
 #define GUEST_ENTRY_OFFSET  0x200000
 
-#define VM_RAM_OFFSET 0
 #define VM_INITRD_MAX_SIZE 0x2000000 //32 MB
 #define VM_DTB_MAX_SIZE     0x1000000   // 16 MB
 
