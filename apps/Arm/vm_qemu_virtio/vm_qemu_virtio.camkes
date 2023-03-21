@@ -26,7 +26,7 @@ component VM {
 
     dataport Buf(4096) ctrl;
     dataport Buf(4096) iobuf;
-    dataport Buf(4096) memdev;
+    dataport Buf(4096) virtio_fe;
 }
 
 assembly {
@@ -40,7 +40,7 @@ assembly {
 
         connection seL4SharedDataWithCaps vm_ctrl(from vm0.ctrl, to vm1.ctrl);
         connection seL4SharedDataWithCaps vm_iobuf(from vm0.iobuf, to vm1.iobuf);
-        connection seL4SharedDataWithCaps vm_memdev(from vm0.memdev, to vm1.memdev);
+        connection seL4SharedDataWithCaps vm_virtio_fe(from vm0.virtio_fe, to vm1.virtio_fe);
 
         connection seL4GlobalAsynch u2d(from vm1.intervm_source, to vm0.intervm_sink);
         connection seL4Notification d2u(from vm0.intervm_source, to vm1.intervm_sink);

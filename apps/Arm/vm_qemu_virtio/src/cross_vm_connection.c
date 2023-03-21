@@ -23,14 +23,14 @@
 // these are defined in the dataport's glue code
 extern dataport_caps_handle_t ctrl_handle;
 extern dataport_caps_handle_t iobuf_handle;
-extern dataport_caps_handle_t memdev_handle;
+extern dataport_caps_handle_t virtio_fe_handle;
 
 extern const int vmid;
 
 static struct camkes_crossvm_connection connections[] = {
     { &ctrl_handle, intervm_source_emit, 16, "guest-control-0" },
     { &iobuf_handle, NULL, -1, "guest-iobuf-0" },
-    { &memdev_handle, NULL, -1, "guest-ram-0" },
+    { &virtio_fe_handle, NULL, -1, "guest-ram-0" },
 };
 
 static int consume_callback(vm_t *vm, void *cookie)

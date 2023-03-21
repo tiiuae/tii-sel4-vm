@@ -22,18 +22,21 @@
 #define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
 
+#define VIRTIO_FE_BASE  VM1_RAM_BASE
+#define VIRTIO_FE_SIZE  VM1_RAM_SIZE
+
 assembly {
     composition {}
     configuration {
-        vm_memdev.paddr = VM1_RAM_BASE;
-        vm_memdev.size = VM1_RAM_SIZE;
+        vm_virtio_fe.paddr = VIRTIO_FE_BASE;
+        vm_virtio_fe.size = VIRTIO_FE_SIZE;
 
         /* It is important to have equal size for all dataports, otherwise
          * Linux kernel remaps the PCI devices. seL4's vPCI does not
          * support that and everything would break.
          */
-        vm_ctrl.size = VM1_RAM_SIZE;
-        vm_iobuf.size = VM1_RAM_SIZE;
+        vm_ctrl.size = VIRTIO_FE_SIZE;
+        vm_iobuf.size = VIRTIO_FE_SIZE;
 
         vm0.vm_address_config = {
             "ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
@@ -150,7 +153,10 @@ assembly {
             "0xff846000:0x1000:12"
         ];
         vm1.simple_untyped24_pool = 12;
-        /* Note that RAM is not specified here */
+        /* vm1 guest RAM is mapped from vm_virtio_fe dataport, hence we do not
+         * allocate untyped_mmios for it, nor do we increase
+         * simple_untyped24_pool.
+         */
         vm1.irqs =  [];
         vm1.dtb = dtb([{}]);
     }

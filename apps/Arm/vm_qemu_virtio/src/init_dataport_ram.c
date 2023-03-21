@@ -1,5 +1,6 @@
 /*
  * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ * Copyright 2022, 2023, Technology Innovation Institute
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -16,7 +17,7 @@
 
 extern const int vmid;
 
-extern dataport_caps_handle_t memdev_handle;
+extern dataport_caps_handle_t virtio_fe_handle;
 
 static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
 {
@@ -35,7 +36,7 @@ static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
     }
 
     int page_idx = (frame_start - ram_base) / BIT(sz);
-    frame_result.cptr = dataport_get_nth_frame_cap(&memdev_handle, page_idx);
+    frame_result.cptr = dataport_get_nth_frame_cap(&virtio_fe_handle, page_idx);
     frame_result.rights = seL4_AllRights;
     frame_result.vaddr = frame_start;
     frame_result.size_bits = sz;
