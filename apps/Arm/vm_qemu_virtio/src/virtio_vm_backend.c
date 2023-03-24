@@ -42,18 +42,18 @@ static int consume_callback(vm_t *vm, void *cookie)
 /* VM1 does not define this */
 seL4_Word WEAK intervm_sink_notification_badge(void);
 
-void init_cross_vm_connections(vm_t *vm, void *cookie)
+void virtio_vm_backend_init(vm_t *vm, void *cookie)
 {
-    if (vmid != 0) {
-        ZF_LOGI("running inside user VM, not initializing cross connections");
+    if (!virtio_vm_backend.enabled) {
+        ZF_LOGI("%s virtio VM backend disabled", get_instance_name());
         return;
     }
 
     connections[0].consume_badge = intervm_sink_notification_badge();
     int err = register_async_event_handler(connections[0].consume_badge, consume_callback, NULL);
-    ZF_LOGF_IF(err, "Failed to register_async_event_handler for init_cross_vm_connections.");
+    ZF_LOGF_IF(err, "register_async_event_handler() failed (%d)", err);
 
     cross_vm_connections_init(vm, CONNECTION_BASE_ADDRESS, connections, ARRAY_SIZE(connections));
 }
 
-DEFINE_MODULE(cross_vm_connections, NULL, init_cross_vm_connections)
+DEFINE_MODULE(virtio_vm_backend, NULL, virtio_vm_backend_init)

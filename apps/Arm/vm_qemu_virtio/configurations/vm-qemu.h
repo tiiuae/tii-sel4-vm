@@ -12,6 +12,9 @@
     attribute int cross_connector_large_pages = false; \
     attribute int vmid; \
     attribute { \
+        int enabled = false; \
+    } virtio_vm_backend_config; \
+    attribute { \
         uintptr_t base; \
         size_t size; \
     } virtio_config = {}; \
