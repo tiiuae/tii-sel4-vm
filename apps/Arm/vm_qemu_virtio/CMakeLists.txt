@@ -21,40 +21,12 @@ AddToFileServer("linux-initrd" ${VM_IMAGE_INITRD})
 
 DefineCAmkESVMFileServer()
 
-set(CAmkESCPP ON CACHE BOOL "" FORCE)
-
-AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmSWIOTLB)
-
-set(configure_string "")
-
-config_option(
-    VmVirtioQEMU
-    VM_VIRTIO_QEMU
-    "Enable virtio QEMU module"
-    DEPENDS
-    "KernelPlatformQEMUArmVirt OR KernelPlatformRpi4;VmPCISupport"
-    DEFAULT
-    OFF
-)
-
-config_option(
-    VmSWIOTLB
-    VM_SWIOTLB
-    "Use SWIOTLB instead of exposing whole guest RAM to host"
-    DEPENDS
-    "VmVirtioQEMU"
-    DEFAULT
-    ON
-)
-
-add_config_library(vm_qemu_virtio "${configure_string}")
-
 CAmkESAddImportPath(${KernelARMPlatform})
 
 DeclareCAmkESComponent(
     VM
     SOURCES
-    src/cross_vm_connection.c
+    src/virtio_vm_backend.c
     src/fdt.c
     src/init_dataport_ram.c
     src/qemu.c
