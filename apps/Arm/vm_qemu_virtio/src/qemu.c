@@ -54,13 +54,6 @@ static void wait_for_host_qemu(void);
 
 static vm_t *vm;
 
-static void driver_pre_load_linux(void)
-{
-    /* log area not used currently but clear it anyway */
-    extern void *ctrl;
-    memset(((char *)ctrl) + 3072, 0, 4 * sizeof(uint32_t));
-}
-
 static void user_pre_load_linux(void)
 {
     if (sync_sem_new(&_vka, &handoff, 0)) {
@@ -88,9 +81,7 @@ void qemu_initialize_semaphores(vm_t *_vm)
 {
     vm = _vm;
 
-    if (vmid == 0) {
-        driver_pre_load_linux();
-    } else {
+    if (vmid != 0) {
         user_pre_load_linux();
     }
 }
