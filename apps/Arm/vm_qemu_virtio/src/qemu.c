@@ -84,19 +84,6 @@ static void user_pre_load_linux(void)
     ZF_LOGI("driver QEMU up, continuing");
 }
 
-int pre_load_linux_hook(vm_t *_vm)
-{
-    vm = _vm;
-
-    if (vmid == 0) {
-        driver_pre_load_linux();
-    } else {
-        user_pre_load_linux();
-    }
-
-    return 0;
-}
-
 typedef struct virtio_qemu {
     unsigned int iobase;
     ps_io_ops_t ioops;
@@ -371,8 +358,15 @@ memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu,
     return rc;
 }
 
-void qemu_init(vm_t *vm, void *cookie)
+static void qemu_init(vm_t *_vm, void *cookie)
 {
+    vm = _vm;
+
+    if (vmid == 0) {
+        driver_pre_load_linux();
+    } else {
+        user_pre_load_linux();
+    }
 }
 
 DEFINE_MODULE(qemu, NULL, qemu_init)
