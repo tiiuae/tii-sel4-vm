@@ -29,7 +29,7 @@ DeclareCAmkESComponent(
     src/virtio_vm_backend.c
     src/fdt.c
     src/init_dataport_ram.c
-    src/qemu.c
+    src/virtio_frontend.c
     src/trace.c
     src/ioreq.c
     LIBS
