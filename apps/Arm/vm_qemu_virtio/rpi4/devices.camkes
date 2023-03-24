@@ -86,6 +86,9 @@ assembly {
             "provide_dtb" : false,
             "map_one_to_one" : true,
         };
+        vm0.virtio_vm_backend_config = {
+            "enabled" : true,
+        };
         vm0.cross_connector_large_pages = true;
         vm0.tracebuffer_base = 0x08800000;
         vm0.tracebuffer_size = 0x200000;

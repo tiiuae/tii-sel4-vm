@@ -27,6 +27,7 @@ DeclareCAmkESComponent(
     VM
     SOURCES
     src/cross_vm_connection.c
+    src/virtio_vm_backend.c
     src/init_dataport_ram.c
     src/pl011.c
     src/qemu.c
