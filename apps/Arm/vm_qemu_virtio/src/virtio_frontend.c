@@ -57,10 +57,6 @@ static void wait_for_host_qemu(void);
 
 static vm_t *vm;
 
-static void driver_pre_load_linux(void)
-{
-}
-
 static void user_pre_load_linux(void)
 {
     if (sync_sem_new(&_vka, &handoff, 0)) {
@@ -358,15 +354,16 @@ memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu,
     return rc;
 }
 
-static void qemu_init(vm_t *_vm, void *cookie)
+static void virtio_frontend_init(vm_t *_vm, void *cookie)
 {
     vm = _vm;
 
-    if (vmid == 0) {
-        driver_pre_load_linux();
-    } else {
-        user_pre_load_linux();
+    if (!virtio_frontend.enabled) {
+        ZF_LOGI("%s virtio frontend disabled", get_instance_name());
+        return;
     }
+
+    user_pre_load_linux();
 }
 
-DEFINE_MODULE(qemu, NULL, qemu_init)
+DEFINE_MODULE(virtio_frontend, NULL, virtio_frontend_init)
