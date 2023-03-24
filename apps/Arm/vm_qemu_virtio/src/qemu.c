@@ -60,8 +60,6 @@ static void driver_pre_load_linux(void)
     /* log area not used currently but clear it anyway */
     extern void *ctrl;
     memset(((char *)ctrl) + 3072, 0, 4 * sizeof(uint32_t));
-
-    trace_init(vm);
 }
 
 static void user_pre_load_linux(void)

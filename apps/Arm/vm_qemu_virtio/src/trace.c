@@ -1,5 +1,5 @@
 /*
- * Copyright 2022, Technology Innovation Institute
+ * Copyright 2022, 2023, Technology Innovation Institute
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,8 @@
 #include <sel4vm/guest_vm.h>
 
 #include <sel4/benchmark_track_types.h>
+
+#include <vmlinux.h>
 
 #include "trace.h"
 
@@ -104,7 +106,7 @@ void trace_init_shared_mem(vm_t *vm, const char *name,
     ZF_LOGE("%s: frame @0x%lx mapped to VMM-> @0x%lx\n", name, local_mem->cptr, (unsigned long)*vmm_memory);
 }
 
-void trace_init(vm_t *vm)
+static void trace_init(vm_t *vm, void *cookie)
 {
     if (&ramoops_base && &ramoops_size && ramoops_base && ramoops_size) {
         const uint64_t pstore_mem_size_bits = seL4_LargePageBits;
@@ -170,4 +172,5 @@ void trace_dump(void)
     }
 }
 
+DEFINE_MODULE(trace, NULL, trace_init)
 #endif /* CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES */
