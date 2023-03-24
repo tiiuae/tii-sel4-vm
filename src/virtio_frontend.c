@@ -331,20 +331,23 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
     return FAULT_HANDLED;
 }
 
-static void qemu_init(vm_t *_vm, void *cookie)
+static void virtio_frontend_init(vm_t *_vm, void *cookie)
 {
     vm_memory_reservation_t *reservation;
 
     vm = _vm;
+
+    if (!virtio_frontend.enabled) {
+        ZF_LOGI("%s virtio frontend disabled", get_instance_name());
+        return;
+    }
 
     reservation = vm_reserve_memory_at(vm, PCI_MEM_REGION_ADDR,
                                        BIT(PAGE_BITS_2M), qemu_fault_handler,
                                        NULL);
     ZF_LOGF_IF(!reservation, "Cannot reserve virtio frontend address range");
 
-    if (vmid != 0) {
-        user_pre_load_linux();
-    }
+    user_pre_load_linux();
 }
 
-DEFINE_MODULE(qemu, NULL, qemu_init)
+DEFINE_MODULE(virtio_frontend, NULL, virtio_frontend_init)

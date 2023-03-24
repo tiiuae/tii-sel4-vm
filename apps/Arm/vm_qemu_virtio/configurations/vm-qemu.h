@@ -15,6 +15,9 @@
         int enabled = false; \
     } virtio_vm_backend_config; \
     attribute { \
+        int enabled = false; \
+    } virtio_frontend_config; \
+    attribute { \
         uintptr_t base; \
         size_t size; \
     } virtio_config = {}; \
