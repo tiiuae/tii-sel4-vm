@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
-cmake_minimum_required(VERSION 3.8.2)
+cmake_minimum_required(VERSION 3.12.0)
 include(settings.cmake)
 project(camkes-vm C CXX ASM)
 
@@ -18,6 +18,38 @@ if(AppArch STREQUAL "Arm")
 else()
 	message(FATAL_ERROR "Unsupported")
 endif()
+
+file(
+    GLOB
+        tii_camkes_vm_sources
+        src/*.c
+        src/modules/*.c
+if(KernelPlatformRpi4)
+	src/plat/rpi4/*.c
+else()
+        src/plat/${KernelPlatform}/*.c
+endif()
+)
+
+list(
+    APPEND tii_camkes_vm_includes
+    ${ARM_VM_PROJECT_DIR}/components/VM_Arm/include
+)
+
+add_library(tii_camkes_vm OBJECT ${tii_camkes_vm_sources})
+
+target_include_directories(
+    tii_camkes_vm
+    PRIVATE ${tii_camkes_vm_includes}
+    PUBLIC include
+)
+target_link_libraries(
+    tii_camkes_vm
+    fdt
+    sel4_autoconf
+    sel4vm
+)
+
 # Add VM application
 add_subdirectory("apps/${AppArch}/${CAMKES_VM_APP}")
 # Should be done adding targets, can now generate the root server and the global configuration
