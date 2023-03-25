@@ -21,6 +21,8 @@ CAmkESAddTemplatesPath(templates)
 
 set(CAmkESCPP ON CACHE BOOL "" FORCE)
 
+AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmSWIOTLB)
+
 set(configure_string "")
 
 config_option(
@@ -31,6 +33,16 @@ config_option(
     "KernelPlatformQEMUArmVirt OR KernelPlatformRpi4;VmPCISupport"
     DEFAULT
     OFF
+)
+
+config_option(
+    VmSWIOTLB
+    VM_SWIOTLB
+    "Use SWIOTLB instead of exposing whole guest RAM to host"
+    DEPENDS
+    "VmVirtioQEMU"
+    DEFAULT
+    ON
 )
 
 add_config_library(tii_camkes_vm "${configure_string}")
