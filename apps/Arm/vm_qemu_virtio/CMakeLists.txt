@@ -32,6 +32,8 @@ DeclareCAmkESComponent(
     src/qemu.c
     src/trace.c
     src/ioreq.c
+    LIBS
+    virtioarm
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
