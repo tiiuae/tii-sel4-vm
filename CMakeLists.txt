@@ -1,5 +1,6 @@
 #
 # Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+# Copyright 2022, 2023, Technology Innovation Institute
 #
 # SPDX-License-Identifier: BSD-2-Clause
 #
@@ -8,8 +9,8 @@ cmake_minimum_required(VERSION 3.8.2)
 include(settings.cmake)
 project(camkes-vm C CXX ASM)
 
-set(TII_SEL4_VM_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE STRING "")
-mark_as_advanced(TII_SEL4_VM_DIR)
+set(TII_CAMKES_VM_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE STRING "")
+mark_as_advanced(TII_CAMKES_VM_DIR)
 
 if(AppArch STREQUAL "Arm")
 	find_package(camkes-arm-vm REQUIRED)
