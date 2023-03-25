@@ -17,10 +17,7 @@
     attribute { \
         int enabled = false; \
     } virtio_frontend_config; \
-    attribute { \
-        uintptr_t base; \
-        size_t size; \
-    } virtio_config = {}; \
+
 
 #define VM_QEMU_CONFIGURATION_DEF(num) \
     vm##num.fs_shmem_size = 0x100000; \
