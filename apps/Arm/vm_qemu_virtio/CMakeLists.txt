@@ -33,6 +33,7 @@ DeclareCAmkESComponent(
     src/trace.c
     src/ioreq.c
     LIBS
+    tii_camkes_vm
     virtioarm
 )
 

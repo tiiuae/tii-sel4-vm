@@ -18,6 +18,31 @@ if(AppArch STREQUAL "Arm")
 else()
 	message(FATAL_ERROR "Unsupported")
 endif()
+
+file(
+    GLOB
+        tii_camkes_vm_sources
+        src/*.c
+        src/modules/*.c
+        src/plat/${KernelPlatform}/*.c
+)
+
+if(KernelPlatformRpi4)
+    list(
+        APPEND tii_camkes_vm_sources "${TII_CAMKES_VM_DIR}/src/plat/rpi4")
+    )
+else()
+    list(
+        APPEND tii_camkes_vm_sources "${TII_CAMKES_VM_DIR}/src/plat/${KernelPlatform}")
+    )
+endif()
+
+add_library(tii_camkes_vm STATIC EXCLUDE_FROM_ALL ${tii_camkes_vm_sources})
+target_include_directories(
+    tii_camkes_vm
+    PUBLIC include
+)
+
 # Add VM application
 add_subdirectory("apps/${AppArch}/${CAMKES_VM_APP}")
 # Should be done adding targets, can now generate the root server and the global configuration
