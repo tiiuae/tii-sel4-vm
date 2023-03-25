@@ -50,7 +50,7 @@ static void intervm_callback(void *opaque);
 
 static vmm_pci_config_t make_qemu_pci_config(void *cookie);
 
-static void wait_for_host_qemu(void);
+static void wait_for_backend(void);
 
 static vm_t *vm;
 
@@ -67,14 +67,13 @@ static void user_pre_load_linux(void)
         ZF_LOGF("Problem registering intervm sink callback");
     }
 
-    /* load_linux() eventually calls fdt_generate_vpci_node(), which
-     * will block unless QEMU is already running in the driver VM.
-     * Therefore we will need to listen to start signal here before
-     * proceeding to load_linux() in VM_Arm.
+    /* load_linux() eventually calls fdt_generate_vpci_node(), which blocks
+     * unless backend is already running. Therefore we need to listen to start
+     * signal here before proceeding to load_linux() in VM_Arm.
      */
-    ZF_LOGI("waiting for driver QEMU");
-    wait_for_host_qemu();
-    ZF_LOGI("driver QEMU up, continuing");
+    ZF_LOGI("waiting for virtio backend");
+    wait_for_backend();
+    ZF_LOGI("virtio backend up, continuing");
 }
 
 typedef struct virtio_qemu {
@@ -196,7 +195,7 @@ static void intervm_callback(void *opaque)
     }
 }
 
-static void wait_for_host_qemu(void)
+static void wait_for_backend(void)
 {
     // camkes_protect_reply_cap() ??
     /* TODO: in theory it should be enough to wait for the semaphore
