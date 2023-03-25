@@ -40,7 +40,7 @@ int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
 volatile int ok_to_run = 0;
 
 static sync_sem_t handoff;
-static sync_sem_t qemu_started;
+static sync_sem_t backend_started;
 
 extern vka_t _vka;
 
@@ -59,7 +59,7 @@ static void user_pre_load_linux(void)
     if (sync_sem_new(&_vka, &handoff, 0)) {
         ZF_LOGF("Unable to allocate handoff semaphore");
     }
-    if (sync_sem_new(&_vka, &qemu_started, 0)) {
+    if (sync_sem_new(&_vka, &backend_started, 0)) {
         ZF_LOGF("Unable to allocate handoff semaphore");
     }
 
@@ -157,7 +157,7 @@ static bool handle_async(rpcmsg_t *msg)
     case QEMU_OP_START_VM: {
         ioreq_init(iobuf);
         ok_to_run = 1;
-        sync_sem_post(&qemu_started);
+        sync_sem_post(&backend_started);
         break;
     }
     case QEMU_OP_REGISTER_PCI_DEV:
@@ -205,10 +205,10 @@ static void wait_for_backend(void)
      * to study seL4 IPC in more depth.
      */
     do {
-        ZF_LOGI("qemu_started sem value = %d", qemu_started.value);
-        int err = sync_sem_wait(&qemu_started);
+        ZF_LOGI("backend_started sem value = %d", backend_started.value);
+        int err = sync_sem_wait(&backend_started);
         ZF_LOGI("sync_sem_wait rv = %d", err);
-        ZF_LOGI("qemu_started sem value = %d", qemu_started.value);
+        ZF_LOGI("backend_started sem value = %d", backend_started.value);
     } while (!ok_to_run);
 }
 
