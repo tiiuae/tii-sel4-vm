@@ -34,7 +34,7 @@ DeclareCAmkESComponent(
     src/ioreq.c
     LIBS
     virtioarm
-    vm_qemu_virtio_Config
+    tii_camkes_vm_Config
     TEMPLATE_SOURCES
     seL4VMSWIOTLBParameters.template.c
     TEMPLATE_HEADERS
