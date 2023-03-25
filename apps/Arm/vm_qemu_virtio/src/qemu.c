@@ -212,7 +212,7 @@ static void wait_for_backend(void)
     } while (!ok_to_run);
 }
 
-static inline void host_upcall(void)
+static inline void backend_notify(void)
 {
     intervm_source_emit();
 }
@@ -224,7 +224,7 @@ static inline uint32_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
     int slot = ioreq_pci_start(iobuf, qemu->idx, dir, offset, size, value);
     assert(ioreq_slot_valid(slot));
 
-    host_upcall();
+    backend_notify();
     sync_sem_wait(&handoff);
 
     value = ioreq_pci_finish(iobuf, slot);
@@ -291,7 +291,7 @@ static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
     if (err < 0) {
         ZF_LOGF("Failure starting mmio read request");
     }
-    host_upcall();
+    backend_notify();
 }
 
 static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
@@ -308,7 +308,7 @@ static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len
     if (err < 0) {
         ZF_LOGF("Failure starting mmio write request");
     }
-    host_upcall();
+    backend_notify();
 }
 
 static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
