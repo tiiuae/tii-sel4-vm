@@ -29,7 +29,7 @@
 
 #include <virtioarm/virtio_plat.h>
 
-#define VIRTIO_QEMU_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
+#define VIRTIO_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
 
 extern void *ctrl;
 extern void *iobuf;
@@ -111,7 +111,7 @@ virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
     vmm_pci_entry_t qemu_entry = vmm_virtio_qemu_pci_bar(qemu);
     vmm_pci_add_entry(pci, qemu_entry, NULL);
 
-    err =  vm_register_irq(vm->vcpus[BOOT_VCPU], VIRTIO_QEMU_PLAT_INTERRUPT_LINE, &virtio_qemu_ack, NULL);
+    err =  vm_register_irq(vm->vcpus[BOOT_VCPU], VIRTIO_PLAT_INTERRUPT_LINE, &virtio_qemu_ack, NULL);
     if (err) {
         ZF_LOGE("Failed to register console irq");
         return NULL;
@@ -149,10 +149,10 @@ static bool handle_async(rpcmsg_t *msg)
             return false;
         break;
     case QEMU_OP_SET_IRQ:
-        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_QEMU_PLAT_INTERRUPT_LINE, true);
+        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_PLAT_INTERRUPT_LINE, true);
         break;
     case QEMU_OP_CLR_IRQ:
-        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_QEMU_PLAT_INTERRUPT_LINE, false);
+        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_PLAT_INTERRUPT_LINE, false);
         break;
     case QEMU_OP_START_VM: {
         ioreq_init(iobuf);
@@ -240,8 +240,9 @@ static inline uint32_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
 
 static uint8_t qemu_pci_read8(void *cookie, vmm_pci_address_t addr, unsigned int offset)
 {
-    if (offset == 0x3c)
-        return VIRTIO_CON_PLAT_INTERRUPT_LINE;
+    if (offset == 0x3c) {
+        return VIRTIO_PLAT_INTERRUPT_LINE;
+    }
     return qemu_pci_read(cookie, offset, 1);
 }
 
