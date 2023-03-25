@@ -18,6 +18,35 @@ else()
 	message(FATAL_ERROR "Unsupported")
 endif()
 CAmkESAddTemplatesPath(templates)
+
+set(CAmkESCPP ON CACHE BOOL "" FORCE)
+
+set(configure_string "")
+
+config_option(
+    VmVirtioQEMU
+    VM_VIRTIO_QEMU
+    "Enable virtio QEMU module"
+    DEPENDS
+    "KernelPlatformQEMUArmVirt OR KernelPlatformRpi4;VmPCISupport"
+    DEFAULT
+    OFF
+)
+
+add_config_library(tii_camkes_vm "${configure_string}")
+
+file(
+    GLOB
+        sources
+        src/*.c
+)
+
+add_library(tii_camkes_vm STATIC EXCLUDE_FROM_ALL ${sources})
+target_include_directories(
+    tii_camkes_vm
+    PUBLIC include
+)
+
 # Add VM application
 add_subdirectory("apps/${AppArch}/${CAMKES_VM_APP}")
 # Should be done adding targets, can now generate the root server and the global configuration
