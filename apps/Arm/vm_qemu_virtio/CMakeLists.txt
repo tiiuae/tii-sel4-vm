@@ -36,9 +36,9 @@ DeclareCAmkESComponent(
     virtioarm
     tii_camkes_vm_Config
     TEMPLATE_SOURCES
-    seL4VMSWIOTLBParameters.template.c
+    seL4VMVirtIOParameters.template.c
     TEMPLATE_HEADERS
-    seL4VMSWIOTLBParameters.template.h
+    seL4VMVirtIOParameters.template.h
 )
 
 CAmkESAddCPPInclude("${CMAKE_CURRENT_LIST_DIR}/configurations/")
