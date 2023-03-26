@@ -8,19 +8,24 @@
 
 #include <fdt_custom.h>
 
-int fdt_generate_usb_node(void *fdt)
+#define USB_PCI_NODE_PATH   "/scb/pcie@7d500000/pci@0,0"
+#define USB_NODE_NAME       "usb@0,0"
+
+static int fdt_generate_usb_node(void *fdt)
 {
-    int root_offset = fdt_path_offset(fdt, "/scb/pcie@7d500000/pci@0,0");
+    int root_offset = fdt_path_offset(fdt, USB_PCI_NODE_PATH);
     int address_cells = fdt_address_cells(fdt, root_offset);
     int size_cells = fdt_size_cells(fdt, root_offset);
 
     if (root_offset <= 0) {
-        ZF_LOGE("root_offset: %d", root_offset);
+        ZF_LOGI("Not adding %s, parent %s missing", USB_NODE_NAME,
+                USB_PCI_NODE_PATH);
+        return 0;
     }
 
-    int this = fdt_add_subnode(fdt, root_offset, "usb@0,0");
+    int this = fdt_add_subnode(fdt, root_offset, USB_NODE_NAME);
     if (this < 0) {
-        ZF_LOGE("Can't add usb@1,0 subnode: %d", this);
+        ZF_LOGE("Can't add %s subnode: %d", USB_NODE_NAME, this);
         return this;
     }
 
@@ -65,12 +70,20 @@ int fdt_generate_usb_node(void *fdt)
         return err;
     }
 
+    ZF_LOGI("%s/%s added to device tree", USB_PCI_NODE_PATH, USB_NODE_NAME);
+
     return 0;
 }
 
 int fdt_plat_customize(vm_t *vm, void *gen_fdt)
 {
     int err;
+
+    err = fdt_generate_usb_node(gen_fdt);
+    if (err) {
+        ZF_LOGE("Cannot generate USB DTB node (%d)", err);
+        return err;
+    }
 
     return 0;
 }
