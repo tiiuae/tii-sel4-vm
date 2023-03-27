@@ -25,6 +25,16 @@ set(CAmkESCPP ON CACHE BOOL "" FORCE)
 
 set(configure_string "")
 
+config_option(
+    VmVirtioQEMU
+    VM_VIRTIO_QEMU
+    "Enable virtio QEMU module"
+    DEPENDS
+    "VmPCISupport"
+    DEFAULT
+    OFF
+)
+
 add_config_library(tii_camkes_vm "${configure_string}")
 
 file(
