@@ -93,23 +93,21 @@ static int fdt_generate_trace_nodes(void *gen_fdt)
 {
     int err;
 
-    if (vmid == 0) {
-        if (&tracebuffer_base && &tracebuffer_size && tracebuffer_base && tracebuffer_size) {
-            ZF_LOGE("Trying to add sel4 tracebuffer node: 0x%lx@0x%lx", tracebuffer_size, tracebuffer_base);
+    if (&tracebuffer_base && &tracebuffer_size && tracebuffer_base && tracebuffer_size) {
+        ZF_LOGE("Trying to add sel4 tracebuffer node: 0x%lx@0x%lx", tracebuffer_size, tracebuffer_base);
 
-            err = fdt_generate_sel4_tracebuffer_node(gen_fdt, tracebuffer_base, tracebuffer_size);
-            if (err) {
-                return -1;
-            }
+        err = fdt_generate_sel4_tracebuffer_node(gen_fdt, tracebuffer_base, tracebuffer_size);
+        if (err) {
+            return -1;
         }
+    }
 
-        if (&ramoops_base && &ramoops_size && ramoops_base && ramoops_size) {
-            ZF_LOGE("Trying to add ramoops node: 0x%lx@0x%lx", ramoops_size, ramoops_base);
+    if (&ramoops_base && &ramoops_size && ramoops_base && ramoops_size) {
+        ZF_LOGE("Trying to add ramoops node: 0x%lx@0x%lx", ramoops_size, ramoops_base);
 
-            err = fdt_generate_ramoops_node(gen_fdt, ramoops_base, ramoops_size);
-            if (err) {
-                return -1;
-            }
+        err = fdt_generate_ramoops_node(gen_fdt, ramoops_base, ramoops_size);
+        if (err) {
+            return -1;
         }
     }
 
