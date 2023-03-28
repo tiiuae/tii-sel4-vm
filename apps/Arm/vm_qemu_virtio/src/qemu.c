@@ -331,25 +331,6 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
     return FAULT_HANDLED;
 }
 
-static memory_fault_callback_fn qemu_fault_handlers[] = {
-    NULL, // sentinel
-};
-
-memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu,
-                                              uintptr_t paddr, size_t len,
-                                              void *cookie)
-{
-    memory_fault_result_t rc = FAULT_UNHANDLED;
-
-    for (memory_fault_callback_fn *handler = qemu_fault_handlers; (*handler) != NULL; handler++) {
-        rc = (*handler)(vm, vcpu, paddr, len, cookie);
-        if (rc == FAULT_HANDLED)
-            break;
-    }
-
-    return rc;
-}
-
 static void qemu_init(vm_t *_vm, void *cookie)
 {
     vm_memory_reservation_t *reservation;
