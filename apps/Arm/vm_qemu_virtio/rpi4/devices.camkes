@@ -147,6 +147,7 @@ assembly {
         };
         vm1.guest_large_pages = true;
         vm1.mmios = [
+            "0x09000000:0x1000:12",
             "0xff846000:0x1000:12"
         ];
         vm1.simple_untyped24_pool = 12;

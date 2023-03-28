@@ -21,7 +21,6 @@
 #include <pci/helper.h>
 
 #include "sel4-qemu.h"
-#include "pl011_emul.h"
 #include "trace.h"
 #include "ioreq.h"
 
@@ -350,7 +349,6 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
 }
 
 static memory_fault_callback_fn qemu_fault_handlers[] = {
-    pl011_fault_handler,
     qemu_fault_handler,
     NULL, // sentinel
 };
