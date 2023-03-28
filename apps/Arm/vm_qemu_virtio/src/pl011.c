@@ -1,5 +1,5 @@
 /*
- * Copyright 2022, Technology Innovation Institute
+ * Copyright 2022, 2023, Technology Innovation Institute
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -16,19 +16,22 @@
 #include <sel4/sel4.h>
 #include <sel4vm/guest_vm.h>
 #include <sel4vm/guest_vcpu_fault.h>
-#include <sel4vm/guest_memory.h>
 #include <utils/zf_log.h>
 
-static inline bool is_pl011_register(uintptr_t paddr)
-{
-    return (paddr >= 0x09000000 && paddr < 0x09001000);
-}
+typedef struct pl011 {
+    uintptr_t base;
+    size_t size;
+} pl011_t;
 
-static inline void pl011_read_fault_emul(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+#define PL011_UARTDR    0x00
+#define PL011_UARTFR    0x18
+
+static inline void pl011_read_fault(pl011_t *p, vm_vcpu_t *vcpu,
+                                    uintptr_t paddr, size_t len)
 {
-    switch (paddr) {
+    switch (paddr - p->base) {
     /* UARTFR: uart flag register */
-    case 0x09000018:
+    case PL011_UARTFR:
         /* transmitter empty and transmitter-hold-register empty */
         set_vcpu_fault_data(vcpu, 0x90);
         break;
@@ -39,13 +42,14 @@ static inline void pl011_read_fault_emul(vm_vcpu_t *vcpu, uintptr_t paddr, size_
     }
 }
 
-static inline void pl011_write_fault_emul(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+static inline void pl011_write_fault(pl011_t *p, vm_vcpu_t *vcpu,
+                                     uintptr_t paddr, size_t len)
 {
     seL4_Word value = emulate_vcpu_fault(vcpu, 0);
 
-    switch (paddr) {
+    switch (paddr - p->base) {
     /* UARTDR: uart data register */
-    case 0x09000000:
+    case PL011_UARTDR:
         putchar((int) value);
         break;
     default:
@@ -55,12 +59,13 @@ static inline void pl011_write_fault_emul(vm_vcpu_t *vcpu, uintptr_t paddr, size
     }
 }
 
-static inline void handle_pl011_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+static inline void pl011_handle_fault(pl011_t *p, vm_vcpu_t *vcpu,
+                                      uintptr_t paddr, size_t len)
 {
     if (is_vcpu_read_fault(vcpu)) {
-        pl011_read_fault_emul(vcpu, paddr, len);
+        pl011_read_fault(p, vcpu, paddr, len);
     } else {
-        pl011_write_fault_emul(vcpu, paddr, len);
+        pl011_write_fault(p, vcpu, paddr, len);
     }
     advance_vcpu_fault(vcpu);
 }
@@ -70,12 +75,31 @@ static memory_fault_result_t pl011_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                  uintptr_t paddr, size_t len,
                                                  void *cookie)
 {
-    if (!is_pl011_register(paddr)) {
+    pl011_t *p = cookie;
+
+    if (paddr < base ||
+        paddr - base >= p->size) {
         return FAULT_UNHANDLED;
     }
 
-    handle_pl011_fault(vcpu, paddr, len);
+    pl011_handle_fault(p, vcpu, paddr, len);
 
     return FAULT_HANDLED;
 }
 
+static void pl011_init(vm_t *vm, void *cookie)
+{
+    vm_memory_reservation_t *res;
+    pl011_t *p = cookie;
+
+    res = vm_reserve_memory_at(vm, p->base, p->size, pl011_fault_handler,
+                               cookie);
+    ZF_LOGF_IF(!res, "Cannot reserve address range for pl011 emulation");
+}
+
+static pl011_t pl011_0x09000000 = {
+    .base = 0x09000000,
+    .size = BITS(PAGE_BITS_4K),
+};
+
+DEFINE_MODULE(pl011, &pl011_0x09000000, pl011_init)
