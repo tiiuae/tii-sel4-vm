@@ -27,10 +27,10 @@ static int trace_names_count;
 bool trace_started;
 unsigned int benchmark_entries;
 
-extern const int __attribute__((weak)) tracebuffer_base;
-extern const int __attribute__((weak)) tracebuffer_size;
-extern const int __attribute__((weak)) ramoops_base;
-extern const int __attribute__((weak)) ramoops_size;
+const int __attribute__((weak)) tracebuffer_base;
+const int __attribute__((weak)) tracebuffer_size;
+const int __attribute__((weak)) ramoops_base;
+const int __attribute__((weak)) ramoops_size;
 
 unsigned int trace_index(const char *str)
 {

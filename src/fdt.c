@@ -10,10 +10,10 @@
 
 #include <fdt_custom.h>
 
-extern const int __attribute__((weak)) tracebuffer_base;
-extern const int __attribute__((weak)) tracebuffer_size;
-extern const int __attribute__((weak)) ramoops_base;
-extern const int __attribute__((weak)) ramoops_size;
+extern const int tracebuffer_base;
+extern const int tracebuffer_size;
+extern const int ramoops_base;
+extern const int ramoops_size;
 
 static int fdt_assign_phandle(void *fdt, int offset, uint32_t *result_phandle)
 {
@@ -93,8 +93,7 @@ static int fdt_generate_trace_nodes(void *gen_fdt)
 {
     int err;
 
-    if (&tracebuffer_base && &tracebuffer_size &&
-        tracebuffer_base && tracebuffer_size) {
+    if (tracebuffer_base && tracebuffer_size) {
         err = fdt_generate_reserved_node(fdt, "sel4_tracebuffer",
                                          "sel4_tracebuffer", tracebuffer_base,
                                          tracebuffer_size, NULL);
@@ -103,8 +102,7 @@ static int fdt_generate_trace_nodes(void *gen_fdt)
         }
     }
 
-    if (&ramoops_base && &ramoops_size &&
-        ramoops_base && ramoops_size) {
+    if (ramoops_base && ramoops_size) {
         err = fdt_generate_reserved_node(fdt, "ramoops", "ramoops",
                                          ramoops_base, ramoops_size, NULL);
         if (err) {
