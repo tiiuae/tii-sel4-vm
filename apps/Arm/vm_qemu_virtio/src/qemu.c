@@ -316,10 +316,6 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie)
 {
-    if (paddr < 0x60000000 || paddr >= 0x60100000) {
-        return FAULT_UNHANDLED;
-    }
-
     if (is_vcpu_read_fault(vcpu)) {
         qemu_read_fault(vcpu, paddr, len);
     } else {
@@ -331,7 +327,6 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
 }
 
 static memory_fault_callback_fn qemu_fault_handlers[] = {
-    qemu_fault_handler,
     NULL, // sentinel
 };
 
@@ -352,9 +347,15 @@ memory_fault_result_t external_fault_callback(vm_t *vm, vm_vcpu_t *vcpu,
 
 static void qemu_init(vm_t *_vm, void *cookie)
 {
+    vm_memory_reservation_t *reservation;
+
     vm = _vm;
 
     if (vmid != 0) {
+        reservation = vm_reserve_memory_at(vm, PCI_MEM_REGION_ADDR, 524288,
+                                           qemu_fault_handler, NULL);
+        ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
+
         user_pre_load_linux();
     }
 }
