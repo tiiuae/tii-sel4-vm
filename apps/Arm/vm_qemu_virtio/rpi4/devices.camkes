@@ -22,6 +22,23 @@
 #define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
 
+#define VIRTIO_BUFFER_BASE  VM1_RAM_BASE
+#define VIRTIO_BUFFER_SIZE  VM1_RAM_SIZE
+
+#define VIRTIO_MMIO_BASE    0x60000000
+#define VIRTIO_MMIO_SIZE    0x10000000
+
+/* Backend QEMU reads these settings from its host kernel /proc/cmdline and
+ * adjusts the 'virt' machine memory map accordingly.
+ */
+#define VIRTIO_FE_CONFIG(_vmid, _buffer_base, _buffer_size, _mmio_base, _mmio_size) \
+    "uservm=" \
+        VAR_STRINGIZE(_vmid) "," \
+        VAR_STRINGIZE(_buffer_base) "," \
+        VAR_STRINGIZE(_buffer_size) "," \
+        VAR_STRINGIZE(_mmio_base) "," \
+        VAR_STRINGIZE(_mmio_size) " "
+
 assembly {
     composition {}
     configuration {
@@ -55,6 +72,8 @@ assembly {
                 "pci=nomsi "
                 "nosmp "
                 "cma=64M "
+                VIRTIO_FE_CONFIG(1, VIRTIO_BUFFER_BASE, VIRTIO_BUFFER_SIZE,
+                                 VIRTIO_MMIO_BASE, VIRTIO_MMIO_SIZE)
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "/soc/serial@7e215040",
             "generate_dtb" : true,
