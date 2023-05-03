@@ -106,6 +106,30 @@ void trace_init_shared_mem(vm_t *vm, const char *name,
     ZF_LOGE("%s: frame @0x%lx mapped to VMM-> @0x%lx\n", name, local_mem->cptr, (unsigned long)*vmm_memory);
 }
 
+static int fdt_generate_trace_nodes(void *gen_fdt)
+{
+    int err;
+
+    if (tracebuffer_base && tracebuffer_size) {
+        err = fdt_generate_reserved_node(gen_fdt, "sel4_tracebuffer",
+                                         "sel4_tracebuffer", tracebuffer_base,
+                                         tracebuffer_size, NULL);
+        if (err) {
+            return err;
+        }
+    }
+
+    if (ramoops_base && ramoops_size) {
+        err = fdt_generate_reserved_node(gen_fdt, "ramoops", "ramoops",
+                                         ramoops_base, ramoops_size, NULL);
+        if (err) {
+            return err;
+        }
+    }
+
+    return 0;
+}
+
 static void trace_init(vm_t *vm, void *cookie)
 {
     if (&ramoops_base && &ramoops_size && ramoops_base && ramoops_size) {
@@ -131,6 +155,11 @@ static void trace_init(vm_t *vm, void *cookie)
         if (error) {
             ZF_LOGF("Cannot set kernel log buffer");
         }
+    }
+
+    int err = fdt_generate_trace_nodes(gen_dtb_buf);
+    if (err) {
+        ZF_LOGF("Cannot generate DT nodes for trace: %d", err);
     }
 }
 

@@ -10,11 +10,6 @@
 
 #include <fdt_custom.h>
 
-extern const int tracebuffer_base;
-extern const int tracebuffer_size;
-extern const int ramoops_base;
-extern const int ramoops_size;
-
 static int fdt_assign_phandle(void *fdt, int offset, uint32_t *result_phandle)
 {
     uint32_t max_phandle = fdt_get_max_phandle(fdt);
@@ -91,40 +86,11 @@ error:
     return err;
 }
 
-static int fdt_generate_trace_nodes(void *gen_fdt)
-{
-    int err;
-
-    if (tracebuffer_base && tracebuffer_size) {
-        err = fdt_generate_reserved_node(gen_fdt, "sel4_tracebuffer",
-                                         "sel4_tracebuffer", tracebuffer_base,
-                                         tracebuffer_size, NULL);
-        if (err) {
-            return err;
-        }
-    }
-
-    if (ramoops_base && ramoops_size) {
-        err = fdt_generate_reserved_node(gen_fdt, "ramoops", "ramoops",
-                                         ramoops_base, ramoops_size, NULL);
-        if (err) {
-            return err;
-        }
-    }
-
-    return 0;
-}
-
 int fdt_customize(vm_t *vm, void *gen_fdt)
 {
     int err;
 
     err = fdt_plat_customize(vm, gen_fdt);
-    if (err) {
-        return err;
-    }
-
-    err = fdt_generate_trace_nodes(gen_fdt);
     if (err) {
         return err;
     }

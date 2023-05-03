@@ -30,7 +30,6 @@ DeclareCAmkESComponent(
     src/init_dataport_ram.c
     src/pl011.c
     src/qemu.c
-    src/trace.c
     src/ioreq.c
     LIBS
     tii_camkes_vm
