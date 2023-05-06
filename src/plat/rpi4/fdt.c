@@ -6,6 +6,8 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
+#include <vmlinux.h>
+
 #include <fdt_custom.h>
 
 #define USB_PCI_NODE_PATH   "/scb/pcie@7d500000/pci@0,0"
@@ -75,15 +77,14 @@ static int fdt_generate_usb_node(void *fdt)
     return 0;
 }
 
-int fdt_plat_customize(vm_t *vm, void *gen_fdt)
+static void rpi4_fdt_customize(vm_t *vm, void *cookie)
 {
     int err;
 
-    err = fdt_generate_usb_node(gen_fdt);
+    err = fdt_generate_usb_node(gen_dtb_buf);
     if (err) {
-        ZF_LOGE("Cannot generate USB DTB node (%d)", err);
-        return err;
+        ZF_LOGF("Cannot generate USB DTB node (%d)", err);
     }
-
-    return 0;
 }
+
+DEFINE_MODULE(rpi4_fdt_customize, NULL, rpi4_fdt_customize)

@@ -85,15 +85,3 @@ error:
             fdt_strerror(err), err);
     return err;
 }
-
-int fdt_customize(vm_t *vm, void *gen_fdt)
-{
-    int err;
-
-    err = fdt_plat_customize(vm, gen_fdt);
-    if (err) {
-        return err;
-    }
-
-    return 0;
-}

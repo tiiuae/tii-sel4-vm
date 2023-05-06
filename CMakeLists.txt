@@ -52,6 +52,7 @@ endif()
 list(
     APPEND tii_camkes_vm_includes
     ${ARM_VM_PROJECT_DIR}/components/VM_Arm/include
+    ${ARM_VM_PROJECT_DIR}/components/VM_Arm/plat_include/${KernelPlatform}
 )
 
 add_library(tii_camkes_vm OBJECT ${tii_camkes_vm_sources})
@@ -65,7 +66,9 @@ target_link_libraries(
     tii_camkes_vm
     fdt
     sel4_autoconf
+    sel4camkes
     sel4vm
+    sel4vmmplatsupport
     tii_camkes_vm_Config
 )
 

@@ -19,4 +19,3 @@ extern const int vmid;
 int fdt_generate_reserved_node(void *fdt, const char *name,
                                const char *compatible, uintptr_t base,
                                size_t size, uint32_t *phandle);
-int fdt_plat_customize(vm_t *vm, void *gen_fdt);
