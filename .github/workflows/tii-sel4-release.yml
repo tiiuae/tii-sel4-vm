@@ -1,0 +1,123 @@
+name: tii-sel4-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tii_sel4_version:
+        description: 'sel4-vm release version'
+        required: true
+      manifest_repo:
+        description: git url of manifest repo
+        required: true 
+      release_doc_loc:
+        description: location of release documentation
+        required: true
+jobs:
+    tii-sel4-vm:
+      name: build tii-sel4-vm
+      runs-on: self-hosted
+      steps:
+        - name: Prepare workspace
+          run: |
+           rm -rf *
+           echo "TII_SEL4_RELEASE=tii_sel4_${{inputs.tii_sel4_version}}" >> $GITHUB_ENV
+           echo "TII_SEL4_RELEASE_DOC=${{inputs.release_doc_loc}}" >> $GITHUB_ENV
+        - name: Install repo
+          run: |
+            mkdir -p ~/.bin
+            curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
+            chmod a+rx ~/.bin/repo
+        - name: sync manifest repository
+          run: |      
+            ~/.bin/repo init \
+            -u ${{github.event.inputs.manifest_repo}} \
+            -b "release/${{env.TII_SEL4_RELEASE}}-rc1" \
+            -m "releases/${{env.TII_SEL4_RELEASE}}.xml"
+            ~/.bin/repo sync
+        - name: Build Docker image
+          run: |
+            make docker
+        - name: Build root file systems and kernel images
+          run: |
+            sed -i '$s/$/ -c "cd vm-images;. setup.sh;bitbake vm-image-driver;exit"/' ./docker/enter_container.sh
+            make shell
+        - name: Copy kernel in place for seL4 builds
+          run: |
+            cp vm-images/build/tmp/deploy/images/vm-raspberrypi4-64/Image \
+            projects/camkes-vm-images/rpi4
+        - name: make rpi4_defconfig
+          run: |
+            make rpi4_defconfig
+        - name: Build vm_minimal
+          run: |
+            make vm_minimal
+        - name: Build vm_multi
+          run: |
+            make vm_multi            
+        - name: Build sel4test
+          run: |
+            make sel4test    
+        - name: Build supported TII seL4 images
+          run: |
+            make vm_qemu_virtio       
+        -  name: Collect artifacts
+           run: |
+            mkdir -p "${{env.TII_SEL4_RELEASE}}/bin/boot"
+
+            ~/.bin/repo manifest \
+            -r \
+            --suppress-upstream-revision \
+            --suppress-dest-branch \
+            -o "${{env.TII_SEL4_RELEASE}}/manifest.xml"
+
+            declare -A targets=(
+              ["rpi4_vm_minimal/images/capdl-loader-image-arm-bcm2711"]=rpi4_vm_minimal
+              ["rpi4_vm_multi/images/capdl-loader-image-arm-bcm2711"]=rpi4_vm_multi
+              ["rpi4_sel4test/images/sel4test-driver-image-arm-bcm2711"]=rpi4_sel4test
+              ["rpi4_vm_qemu_virtio/images/capdl-loader-image-arm-bcm2711"]=rpi4_vm_qemu_virtio
+              )
+
+            for target in "${!targets[@]}"; do
+            cp "$target" "${{env.TII_SEL4_RELEASE}}/bin/boot/${targets[$target]}"
+            done
+
+            declare yocto_targets=(
+            "vm-image-driver-vm-*.ext3"
+            "vm-image-driver-vm-*.tar.bz2"
+            "vm-image-driver-vm-*.manifest"
+            "Image*"
+            )
+
+            for target in "${yocto_targets[@]}"; do
+            cp -P vm-images/build/tmp/deploy/images/vm-raspberrypi4-64/$target "${{env.TII_SEL4_RELEASE}}/bin/"
+            done
+
+            declare yocto_boot_targets=(
+            "u-boot.bin"
+            "bcm2711-rpi-4-b.dtb"
+            "bootcode.bin"
+            "start4.elf"
+            "fixup4.dat"
+            "config.txt"
+            )
+
+            for target in "${yocto_boot_targets[@]}"; do
+            cp tii_sel4_build/hardware/rpi4/$target "${{env.TII_SEL4_RELEASE}}/bin/boot/"
+            done
+        - name: Downloading release documentaion
+          run: |
+            curl -u ${{ secrets.RT_USER }}:${{ secrets.RT_APIKEY }} -XGET "${{env.TII_SEL4_RELEASE_DOC}}" --output ${{env.TII_SEL4_RELEASE}}.md
+            cp ${{env.TII_SEL4_RELEASE}}.md "${{env.TII_SEL4_RELEASE}}/"
+        - name: Create release package 
+          run: fakeroot tar -cjf "${{env.TII_SEL4_RELEASE}}.tar.bz2" "${{env.TII_SEL4_RELEASE}}"
+        - name: Prepare artifactory for upload
+          uses: "jfrog/setup-jfrog-cli@v2"
+        - name: Push to artifactory
+          env:
+            RT_USER: ${{ secrets.RT_USER }}
+            RT_APIKEY: ${{ secrets.RT_APIKEY }}
+            RT_URL: ${{ secrets.RT_URL }}
+          run: |
+            jf c add --url "$RT_URL" --user "$RT_USER" --password "$RT_APIKEY"
+            jf rt ping 
+            jf rt u ${{env.TII_SEL4_RELEASE}}.tar.bz2 tii-sel4-vm-release/ 
