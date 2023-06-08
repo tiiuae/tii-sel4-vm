@@ -28,6 +28,7 @@ DeclareCAmkESComponent(
     SOURCES
     src/cross_vm_connection.c
     src/init_dataport_ram.c
+    src/pci_intx.c
     src/pl011.c
     src/qemu.c
     src/ioreq.c
