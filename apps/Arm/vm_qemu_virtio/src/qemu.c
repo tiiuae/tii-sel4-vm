@@ -20,6 +20,8 @@
 #include <sel4vmmplatsupport/drivers/pci_helper.h>
 #include <pci/helper.h>
 
+#include <tii/shared_irq_line.h>
+
 #include "sel4-qemu.h"
 #include "trace.h"
 #include "ioreq.h"
@@ -53,6 +55,12 @@ static vmm_pci_config_t make_qemu_pci_config(void *cookie);
 static void wait_for_backend(void);
 
 static vm_t *vm;
+
+/*********************** main declarations begin here ***********************/
+
+static shared_irq_line_t irq_line;
+
+/************************ main declarations end here ************************/
 
 static void user_pre_load_linux(void)
 {
@@ -97,8 +105,6 @@ static vmm_pci_entry_t vmm_virtio_qemu_pci_bar(virtio_qemu_t *qemu)
     return vmm_pci_create_passthrough(bogus_addr, make_qemu_pci_config(qemu));
 }
 
-static void virtio_qemu_ack(vm_vcpu_t *vcpu, int irq, void *token) {}
-
 virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
 {
     int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
@@ -110,12 +116,6 @@ virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
 
     vmm_pci_entry_t qemu_entry = vmm_virtio_qemu_pci_bar(qemu);
     vmm_pci_add_entry(pci, qemu_entry, NULL);
-
-    err =  vm_register_irq(vm->vcpus[BOOT_VCPU], VIRTIO_PLAT_INTERRUPT_LINE, &virtio_qemu_ack, NULL);
-    if (err) {
-        ZF_LOGE("Failed to register console irq");
-        return NULL;
-    }
 
     return qemu;
 }
@@ -137,22 +137,55 @@ static void register_pci_device(void)
     pci_dev_count++;
 }
 
-int irq_ext_modify(vm_vcpu_t *vcpu, unsigned int source, unsigned int irq, bool set);
+static int pci_intx_set(unsigned int intx, bool level)
+{
+    /* #INTA ... #INTD */
+    if (intx >= 4) {
+        ZF_LOGE("intx %u invalid", intx);
+        return -1;
+    }
+
+    return shared_irq_line_change(&irq_line, intx, level);
+}
+
+static bool handle_pci(rpcmsg_t *msg)
+{
+    int err = 0;
+
+    switch (QEMU_OP(msg->mr0)) {
+    case QEMU_OP_SET_IRQ:
+        err = pci_intx_set(msg->mr1, true);
+        break;
+    case QEMU_OP_CLR_IRQ:
+        err = pci_intx_set(msg->mr1, false);
+        break;
+    case QEMU_OP_REGISTER_PCI_DEV:
+        register_pci_device();
+        break;
+    default:
+        return false;
+    }
+
+    if (err) {
+        ZF_LOGF("fatal error");
+        /* no return */
+    }
+
+    return true;
+}
 
 static bool handle_async(rpcmsg_t *msg)
 {
     int err;
 
+    if (handle_pci(msg)) {
+        return true;
+    }
+
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_IO_HANDLED:
         if (ioreq_mmio_finish(vm, iobuf, msg->mr1))
             return false;
-        break;
-    case QEMU_OP_SET_IRQ:
-        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_PLAT_INTERRUPT_LINE, true);
-        break;
-    case QEMU_OP_CLR_IRQ:
-        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_PLAT_INTERRUPT_LINE, false);
         break;
     case QEMU_OP_START_VM: {
         ioreq_init(iobuf);
@@ -160,9 +193,6 @@ static bool handle_async(rpcmsg_t *msg)
         sync_sem_post(&backend_started);
         break;
     }
-    case QEMU_OP_REGISTER_PCI_DEV:
-        register_pci_device();
-        break;
     default:
         return false;
     }
@@ -336,6 +366,13 @@ static void qemu_init(vm_t *_vm, void *cookie)
         reservation = vm_reserve_memory_at(vm, PCI_MEM_REGION_ADDR, 524288,
                                            qemu_fault_handler, NULL);
         ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
+
+        int err = shared_irq_line_init(&irq_line, vm->vcpus[BOOT_VCPU],
+                                       VIRTIO_PLAT_INTERRUPT_LINE);
+        if (err) {
+            ZF_LOGF("shared_irq_line_init() failed");
+            /* no return */
+        }
 
         user_pre_load_linux();
     }
