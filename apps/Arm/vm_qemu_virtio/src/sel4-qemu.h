@@ -62,6 +62,12 @@ typedef union {
         seL4_Word mr2;
         seL4_Word mr3;
     } mr;
+    struct {
+        seL4_Word op;
+        seL4_Word int_source;
+        seL4_Word active;
+        seL4_Word unused;
+    } intx;
 } rpcmsg_t;
 
 typedef struct {

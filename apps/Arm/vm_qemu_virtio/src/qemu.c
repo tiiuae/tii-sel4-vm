@@ -23,6 +23,7 @@
 #include "sel4-qemu.h"
 #include "trace.h"
 #include "ioreq.h"
+#include "pci_intx.h"
 
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>
@@ -34,6 +35,8 @@
 /********************* main type definitions begin here *********************/
 
 typedef struct virtio_proxy_config {
+    unsigned int vcpu_id;
+    unsigned int irq;
     uintptr_t pci_mmio_base;
     size_t pci_mmio_size;
 } virtio_proxy_config_t;
@@ -82,8 +85,6 @@ static vmm_pci_entry_t vmm_virtio_qemu_pci_bar(virtio_qemu_t *qemu)
     return vmm_pci_create_passthrough(bogus_addr, make_qemu_pci_config(qemu));
 }
 
-static void virtio_qemu_ack(vm_vcpu_t *vcpu, int irq, void *token) {}
-
 virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
 {
     virtio_qemu_t *qemu;
@@ -94,17 +95,12 @@ virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
     vmm_pci_entry_t qemu_entry = vmm_virtio_qemu_pci_bar(qemu);
     vmm_pci_add_entry(pci, qemu_entry, NULL);
 
-    err =  vm_register_irq(vm->vcpus[BOOT_VCPU], VIRTIO_PLAT_INTERRUPT_LINE, &virtio_qemu_ack, NULL);
-    if (err) {
-        ZF_LOGE("Failed to register console irq");
-        return NULL;
-    }
-
     return qemu;
 }
 
 static virtio_qemu_t *pci_devs[16];
 static unsigned int pci_dev_count;
+static intx_t *intx;
 
 static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
@@ -124,8 +120,6 @@ static void register_pci_device(void)
     pci_dev_count++;
 }
 
-int irq_ext_modify(vm_vcpu_t *vcpu, unsigned int source, unsigned int irq, bool set);
-
 static bool handle_async(rpcmsg_t *msg)
 {
     int err;
@@ -136,10 +130,10 @@ static bool handle_async(rpcmsg_t *msg)
             return false;
         break;
     case QEMU_OP_SET_IRQ:
-        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_PLAT_INTERRUPT_LINE, true);
+        intx_change_level(intx, msg->intx.int_source, true);
         break;
     case QEMU_OP_CLR_IRQ:
-        irq_ext_modify(vm->vcpus[BOOT_VCPU], msg->mr1, VIRTIO_PLAT_INTERRUPT_LINE, false);
+        intx_change_level(intx, msg->intx.int_source, false);
         break;
     case QEMU_OP_START_VM: {
         ioreq_init(iobuf);
@@ -213,6 +207,12 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
     int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
     if (err) {
         ZF_LOGE("Failed to get malloc ops (%d)", err);
+        return -1;
+    }
+
+    intx = intx_init(vm->vcpus[config->vcpu_id], config->irq);
+    if (!intx) {
+        ZF_LOGE("intx_init() failed");
         return -1;
     }
 
@@ -389,6 +389,8 @@ static void virtio_proxy_module_init(vm_t *_vm, void *cookie)
 }
 
 virtio_proxy_config_t virtio_proxy_config = {
+    .vcpu_id = BOOT_VCPU,
+    .irq = VIRTIO_PLAT_INTERRUPT_LINE,
     .pci_mmio_base = PCI_MEM_REGION_ADDR,
     .pci_mmio_size = 524288,
 };
