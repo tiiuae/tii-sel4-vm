@@ -130,9 +130,9 @@ static bool handle_async(rpcmsg_t *msg)
 {
     int err;
 
-    switch (QEMU_OP(msg->mr0)) {
+    switch (QEMU_OP(msg->mr.mr0)) {
     case QEMU_OP_IO_HANDLED:
-        if (ioreq_mmio_finish(vm, iobuf, msg->mr1))
+        if (ioreq_mmio_finish(vm, iobuf, msg->mr.mr1))
             return false;
         break;
     case QEMU_OP_SET_IRQ:

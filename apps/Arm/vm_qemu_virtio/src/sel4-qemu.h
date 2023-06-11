@@ -55,11 +55,13 @@ typedef struct {
 
 #define RPCMSG_BUFFER_SIZE  32
 
-typedef struct {
-    seL4_Word mr0;
-    seL4_Word mr1;
-    seL4_Word mr2;
-    seL4_Word mr3;
+typedef union {
+    struct {
+        seL4_Word mr0;
+        seL4_Word mr1;
+        seL4_Word mr2;
+        seL4_Word mr3;
+    } mr;
 } rpcmsg_t;
 
 typedef struct {
@@ -88,7 +90,7 @@ static void rpcmsg_queue_dump(const char *name, rpcmsg_queue_t *q, unsigned int 
     do {
         rpcmsg_t *msg = &q->data[idx];
         sprintf(tmp, ORIGIN "%02d: %08"PRIx64" %08"PRIx64" %08"PRIx64" %08"PRIx64,
-                idx, msg->mr0, msg->mr1, msg->mr2, msg->mr3);
+                idx, msg->mr.mr0, msg->mr.mr1, msg->mr.mr2, msg->mr.mr3);
         debug_printf("%s", tmp);
         idx = QUEUE_PREV(idx);
     } while (idx != start_idx);
