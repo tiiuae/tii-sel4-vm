@@ -43,6 +43,14 @@ typedef struct virtio_proxy_config {
 
 /********************** main type definitions end here **********************/
 
+/****************** PCI proxy type definitions begin here *******************/
+
+typedef struct pci_proxy {
+    unsigned int idx;
+} pci_proxy_t;
+
+/******************* PCI proxy type definitions end here ********************/
+
 extern void *ctrl;
 extern void *iobuf;
 
@@ -60,62 +68,40 @@ extern const int vmid;
 
 static void intervm_callback(void *opaque);
 
-static vmm_pci_config_t make_qemu_pci_config(void *cookie);
-
 static vm_t *vm;
-
-typedef struct virtio_qemu {
-    unsigned int iobase;
-    ps_io_ops_t ioops;
-    unsigned int idx;
-} virtio_qemu_t;
 
 extern vmm_pci_space_t *pci;
 extern vmm_io_port_list_t *io_ports;
 
 static ps_io_ops_t ops;
 
-static vmm_pci_entry_t vmm_virtio_qemu_pci_bar(virtio_qemu_t *qemu)
-{
-    vmm_pci_address_t bogus_addr = {
-        .bus = 0,
-        .dev = 0,
-        .fun = 0,
-    };
-    return vmm_pci_create_passthrough(bogus_addr, make_qemu_pci_config(qemu));
-}
+/*********************** main declarations begin here ***********************/
 
-virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
-{
-    virtio_qemu_t *qemu;
-
-    int err = ps_calloc(&ops.malloc_ops, 1, sizeof(*qemu), (void **)&qemu);
-    ZF_LOGF_IF(err, "Failed to allocate virtio qemu");
-
-    vmm_pci_entry_t qemu_entry = vmm_virtio_qemu_pci_bar(qemu);
-    vmm_pci_add_entry(pci, qemu_entry, NULL);
-
-    return qemu;
-}
-
-static virtio_qemu_t *pci_devs[16];
+static pci_proxy_t *pci_devs[16];
 static unsigned int pci_dev_count;
 static intx_t *intx;
 
 static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie);
+/************************ main declarations end here ************************/
+
+/******************** PCI proxy declarations begin here *********************/
+
+static pci_proxy_t *pci_proxy_init(vm_t *vm, vmm_pci_space_t *pci);
+
+/********************* PCI proxy declarations end here **********************/
 
 static void register_pci_device(void)
 {
     ZF_LOGI("Registering PCI device");
 
-    virtio_qemu_t *virtio_qemu = virtio_qemu_init(vm, pci);
-    if (!virtio_qemu) {
-        ZF_LOGF("Failed to initialise virtio qemu");
+    pci_proxy_t *dev = pci_proxy_init(vm, pci);
+    if (!dev) {
+        ZF_LOGF("Failed to initialize PCI proxy");
     }
 
-    pci_devs[pci_dev_count] = virtio_qemu;
+    pci_devs[pci_dev_count] = dev;
     pci_devs[pci_dev_count]->idx = pci_dev_count;
     pci_dev_count++;
 }
@@ -259,11 +245,13 @@ static inline void backend_notify(void)
     intervm_source_emit();
 }
 
-static inline uint32_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
-                                      uintptr_t offset, size_t size,
-                                      uint32_t value)
+/************************ PCI proxy code begins here ************************/
+
+static inline uint32_t pci_proxy_start(pci_proxy_t *dev, unsigned int dir,
+                                       uintptr_t offset, size_t size,
+                                       uint32_t value)
 {
-    int slot = ioreq_pci_start(iobuf, qemu->idx, dir, offset, size, value);
+    int slot = ioreq_pci_start(iobuf, dev->idx, dir, offset, size, value);
     assert(ioreq_slot_valid(slot));
 
     backend_notify();
@@ -275,56 +263,96 @@ static inline uint32_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
     return value;
 }
 
-#define qemu_pci_read(_qemu, _offset, _sz) \
-    qemu_pci_start(_qemu, SEL4_IO_DIR_READ, _offset, _sz, 0)
-#define qemu_pci_write(_qemu, _offset, _sz, _val) \
-    qemu_pci_start(_qemu, SEL4_IO_DIR_WRITE, _offset, _sz, _val)
+static inline uint32_t pci_proxy_read(void *cookie, unsigned int offset,
+                                      size_t size)
+{
+    pci_proxy_t *dev = cookie;
 
-static uint8_t qemu_pci_read8(void *cookie, vmm_pci_address_t addr, unsigned int offset)
+    return pci_proxy_start(dev, SEL4_IO_DIR_READ, offset, size, 0);
+}
+
+static inline void pci_proxy_write(void *cookie, unsigned int offset,
+                                   size_t size, uint32_t value)
+{
+    pci_proxy_t *dev = cookie;
+
+    pci_proxy_start(dev, SEL4_IO_DIR_WRITE, offset, size, value);
+}
+
+static uint8_t pci_proxy_read8(void *cookie, vmm_pci_address_t addr,
+                               unsigned int offset)
 {
     if (offset == 0x3c) {
         return VIRTIO_PLAT_INTERRUPT_LINE;
     }
-    return qemu_pci_read(cookie, offset, 1);
+    return pci_proxy_read(cookie, offset, 1);
 }
 
-static uint16_t qemu_pci_read16(void *cookie, vmm_pci_address_t addr, unsigned int offset)
+static uint16_t pci_proxy_read16(void *cookie, vmm_pci_address_t addr,
+                                 unsigned int offset)
 {
-    return qemu_pci_read(cookie, offset, 2);
+    return pci_proxy_read(cookie, offset, 2);
 }
 
-static uint32_t qemu_pci_read32(void *cookie, vmm_pci_address_t addr, unsigned int offset)
+static uint32_t pci_proxy_read32(void *cookie, vmm_pci_address_t addr,
+                                 unsigned int offset)
 {
-    return qemu_pci_read(cookie, offset, 4);
+    return pci_proxy_read(cookie, offset, 4);
 }
 
-static void qemu_pci_write8(void *cookie, vmm_pci_address_t addr, unsigned int offset, uint8_t val)
+static void pci_proxy_write8(void *cookie, vmm_pci_address_t addr,
+                             unsigned int offset, uint8_t val)
 {
-    qemu_pci_write(cookie, offset, 1, val);
+    pci_proxy_write(cookie, offset, 1, val);
 }
 
-static void qemu_pci_write16(void *cookie, vmm_pci_address_t addr, unsigned int offset, uint16_t val)
+static void pci_proxy_write16(void *cookie, vmm_pci_address_t addr,
+                              unsigned int offset, uint16_t val)
 {
-    qemu_pci_write(cookie, offset, 2, val);
+    pci_proxy_write(cookie, offset, 2, val);
 }
 
-static void qemu_pci_write32(void *cookie, vmm_pci_address_t addr, unsigned int offset, uint32_t val)
+static void pci_proxy_write32(void *cookie, vmm_pci_address_t addr,
+                              unsigned int offset, uint32_t val)
 {
-    qemu_pci_write(cookie, offset, 4, val);
+    pci_proxy_write(cookie, offset, 4, val);
 }
 
-static vmm_pci_config_t make_qemu_pci_config(void *cookie)
+static vmm_pci_config_t pci_proxy_make_config(pci_proxy_t *dev)
 {
     return (vmm_pci_config_t) {
-        .cookie = cookie,
-        .ioread8 = qemu_pci_read8,
-        .ioread16 = qemu_pci_read16,
-        .ioread32 = qemu_pci_read32,
-        .iowrite8 = qemu_pci_write8,
-        .iowrite16 = qemu_pci_write16,
-        .iowrite32 = qemu_pci_write32,
+        .cookie = dev,
+        .ioread8 = pci_proxy_read8,
+        .ioread16 = pci_proxy_read16,
+        .ioread32 = pci_proxy_read32,
+        .iowrite8 = pci_proxy_write8,
+        .iowrite16 = pci_proxy_write16,
+        .iowrite32 = pci_proxy_write32,
     };
 }
+
+static pci_proxy_t *pci_proxy_init(vm_t *vm, vmm_pci_space_t *pci)
+{
+    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
+    ZF_LOGF_IF(err, "Failed to get malloc ops");
+
+    pci_proxy_t *dev;
+    err = ps_calloc(&ops.malloc_ops, 1, sizeof(*dev), (void **)&dev);
+    ZF_LOGF_IF(err, "Failed to allocate PCI proxy");
+
+    vmm_pci_address_t bogus_addr = {
+        .bus = 0,
+        .dev = 0,
+        .fun = 0,
+    };
+    vmm_pci_entry_t entry = vmm_pci_create_passthrough(bogus_addr,
+                                                       pci_proxy_make_config(dev));
+    vmm_pci_add_entry(pci, entry, NULL);
+
+    return dev;
+}
+
+/************************* PCI proxy code ends here *************************/
 
 static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
