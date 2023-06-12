@@ -59,31 +59,7 @@ static void intervm_callback(void *opaque);
 
 static vmm_pci_config_t make_qemu_pci_config(void *cookie);
 
-static void wait_for_backend(void);
-
 static vm_t *vm;
-
-static void user_pre_load_linux(void)
-{
-    if (sync_sem_new(&_vka, &handoff, 0)) {
-        ZF_LOGF("Unable to allocate handoff semaphore");
-    }
-    if (sync_sem_new(&_vka, &backend_started, 0)) {
-        ZF_LOGF("Unable to allocate handoff semaphore");
-    }
-
-    if (intervm_sink_reg_callback(intervm_callback, ctrl)) {
-        ZF_LOGF("Problem registering intervm sink callback");
-    }
-
-    /* load_linux() eventually calls fdt_generate_vpci_node(), which blocks
-     * unless backend is already running. Therefore we need to listen to start
-     * signal here before proceeding to load_linux() in VM_Arm.
-     */
-    ZF_LOGI("waiting for virtio backend");
-    wait_for_backend();
-    ZF_LOGI("virtio backend up, continuing");
-}
 
 typedef struct virtio_qemu {
     unsigned int iobase;
@@ -195,15 +171,20 @@ static rpcmsg_t *peek_sync_msg(rpcmsg_queue_t *q)
     }
 }
 
+static void rpc_handler(void)
+{
+    rpcmsg_t *msg = peek_sync_msg(rx_queue);
+    if (msg) {
+        sync_sem_post(&handoff);
+    }
+}
+
 static void intervm_callback(void *opaque)
 {
     int err = intervm_sink_reg_callback(intervm_callback, opaque);
     assert(!err);
 
-    rpcmsg_t *msg = peek_sync_msg(rx_queue);
-    if (msg) {
-        sync_sem_post(&handoff);
-    }
+    rpc_handler();
 }
 
 static void wait_for_backend(void)
@@ -243,7 +224,30 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
         return -1;
     }
 
-    user_pre_load_linux();
+    if (sync_sem_new(&_vka, &handoff, 0)) {
+        ZF_LOGE("Unable to allocate handoff semaphore");
+        return -1;
+    }
+
+    if (intervm_sink_reg_callback(intervm_callback, ctrl)) {
+        ZF_LOGE("Problem registering intervm sink callback");
+        return -1;
+    }
+
+    /* fdt_generate_vpci_node() uses PCI emulation callbacks to determine IRQ
+     * line and pin, hence it would block unless backend happens to be running
+     * already. Fix this once we have more proper PCI frontend in place
+     * (virtio-specific patched status words and timeouts in proxied MMIO in
+     * general).
+     */
+    if (sync_sem_new(&_vka, &backend_started, 0)) {
+        ZF_LOGE("Unable to allocate backend_started semaphore");
+        return -1;
+    }
+
+    ZF_LOGI("waiting for virtio backend");
+    wait_for_backend();
+    ZF_LOGI("virtio backend up, continuing");
 
     return 0;
 }
