@@ -190,10 +190,7 @@ static void wait_for_backend(void)
      * to study seL4 IPC in more depth.
      */
     do {
-        ZF_LOGI("backend_started sem value = %d", backend_started.value);
         int err = sync_sem_wait(&backend_started);
-        ZF_LOGI("sync_sem_wait rv = %d", err);
-        ZF_LOGI("backend_started sem value = %d", backend_started.value);
     } while (!ok_to_run);
 }
 
