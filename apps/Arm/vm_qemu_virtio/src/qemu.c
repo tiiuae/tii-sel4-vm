@@ -31,6 +31,15 @@
 
 #define VIRTIO_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
 
+/********************* main type definitions begin here *********************/
+
+typedef struct virtio_proxy_config {
+    uintptr_t pci_mmio_base;
+    size_t pci_mmio_size;
+} virtio_proxy_config_t;
+
+/********************** main type definitions end here **********************/
+
 extern void *ctrl;
 extern void *iobuf;
 
@@ -123,6 +132,10 @@ virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
 static virtio_qemu_t *pci_devs[16];
 static unsigned int pci_dev_count;
 
+static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
+                                                uintptr_t paddr, size_t len,
+                                                void *cookie);
+
 static void register_pci_device(void)
 {
     ZF_LOGI("Registering PCI device");
@@ -211,6 +224,27 @@ static void wait_for_backend(void)
         ZF_LOGI("backend_started sem value = %d", backend_started.value);
     } while (!ok_to_run);
 }
+
+/************************** main code begins here ***************************/
+
+static int virtio_proxy_init(const virtio_proxy_config_t *config)
+{
+    vm_memory_reservation_t *reservation;
+
+    reservation = vm_reserve_memory_at(vm, config->pci_mmio_base,
+                                       config->pci_mmio_size,
+                                       qemu_fault_handler, NULL);
+    if (!reservation) {
+        ZF_LOGE("Cannot reserve PCI MMIO region");
+        return -1;
+    }
+
+    user_pre_load_linux();
+
+    return 0;
+}
+
+/*************************** main code ends here ****************************/
 
 static inline void backend_notify(void)
 {
@@ -326,19 +360,31 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
     return FAULT_HANDLED;
 }
 
-static void qemu_init(vm_t *_vm, void *cookie)
+/******************** CAmkES adaptation code begins here *********************/
+
+static void virtio_proxy_module_init(vm_t *_vm, void *cookie)
 {
-    vm_memory_reservation_t *reservation;
+    const virtio_proxy_config_t *config = cookie;
 
     vm = _vm;
 
-    if (vmid != 0) {
-        reservation = vm_reserve_memory_at(vm, PCI_MEM_REGION_ADDR, 524288,
-                                           qemu_fault_handler, NULL);
-        ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
+    if (vmid == 0) {
+        ZF_LOGI("Not configuring virtio proxy for VM %d", vmid);
+        return;
+    }
 
-        user_pre_load_linux();
+    int err = virtio_proxy_init(config);
+    if (err) {
+        ZF_LOGF("virtio_proxy_init() failed (%d)", err);
+        /* no return */
     }
 }
 
-DEFINE_MODULE(qemu, NULL, qemu_init)
+virtio_proxy_config_t virtio_proxy_config = {
+    .pci_mmio_base = PCI_MEM_REGION_ADDR,
+    .pci_mmio_size = 524288,
+};
+
+DEFINE_MODULE(virtio_proxy, &virtio_proxy_config, virtio_proxy_module_init)
+
+/********************* CAmkES adaptation code ends here **********************/
