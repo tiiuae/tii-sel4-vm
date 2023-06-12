@@ -51,23 +51,25 @@ typedef struct pci_proxy {
 
 /******************* PCI proxy type definitions end here ********************/
 
-extern void *ctrl;
-extern void *iobuf;
-
-volatile int ok_to_run = 0;
-
-static sync_sem_t handoff;
-static sync_sem_t backend_started;
-
-extern vka_t _vka;
-
 /******************* CAmkES adaptation externs begin here *******************/
 
 extern const int vmid;
 
 /******************** CAmkES adaptation externs end here ********************/
 
-static vm_t *vm;
+/************************* main externs begin here **************************/
+
+extern void *ctrl;
+extern void *iobuf;
+/* TODO: is 'vka' global variable dependent on CAmkES? */
+extern vka_t _vka;
+
+/* TODO: even though virtual PCI is in libsel4vmmplatsupport, isn't 'pci'
+ * global variable dependent on CAmkES VM?
+ */
+extern vmm_pci_space_t *pci;
+
+/************************** main externs end here ***************************/
 
 /**************** CAmkES adaptation declarations begin here *****************/
 
@@ -85,14 +87,14 @@ static void camkes_intervm_callback(void *opaque);
 static int (*framework_init)(void) = camkes_init;
 static void (*backend_notify)(void) = camkes_backend_notify;
 
-/************************ main declarations end here ************************/
+static vm_t *vm;
 
-extern vmm_pci_space_t *pci;
-extern vmm_io_port_list_t *io_ports;
+static sync_sem_t handoff;
+static sync_sem_t backend_started;
+
+static volatile int ok_to_run = 0;
 
 static ps_io_ops_t ops;
-
-/*********************** main declarations begin here ***********************/
 
 static pci_proxy_t *pci_devs[16];
 static unsigned int pci_dev_count;
