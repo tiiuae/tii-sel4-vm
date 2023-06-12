@@ -54,9 +54,6 @@ typedef struct pci_proxy {
 extern void *ctrl;
 extern void *iobuf;
 
-/* VM0 does not have these */
-int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
-
 volatile int ok_to_run = 0;
 
 static sync_sem_t handoff;
@@ -64,11 +61,31 @@ static sync_sem_t backend_started;
 
 extern vka_t _vka;
 
+/******************* CAmkES adaptation externs begin here *******************/
+
 extern const int vmid;
 
-static void intervm_callback(void *opaque);
+/******************** CAmkES adaptation externs end here ********************/
 
 static vm_t *vm;
+
+/**************** CAmkES adaptation declarations begin here *****************/
+
+/* VM0 does not have these */
+int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
+
+static int camkes_init(void);
+static void camkes_backend_notify(void);
+static void camkes_intervm_callback(void *opaque);
+
+/***************** CAmkES adaptation declarations end here ******************/
+
+/*********************** main declarations begin here ***********************/
+
+static int (*framework_init)(void) = camkes_init;
+static void (*backend_notify)(void) = camkes_backend_notify;
+
+/************************ main declarations end here ************************/
 
 extern vmm_pci_space_t *pci;
 extern vmm_io_port_list_t *io_ports;
@@ -91,6 +108,8 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
 static pci_proxy_t *pci_proxy_init(vm_t *vm, vmm_pci_space_t *pci);
 
 /********************* PCI proxy declarations end here **********************/
+
+/************************** main code begins here ***************************/
 
 static void register_pci_device(void)
 {
@@ -159,14 +178,6 @@ static void rpc_handler(void)
     }
 }
 
-static void intervm_callback(void *opaque)
-{
-    int err = intervm_sink_reg_callback(intervm_callback, opaque);
-    assert(!err);
-
-    rpc_handler();
-}
-
 static void wait_for_backend(void)
 {
     // camkes_protect_reply_cap() ??
@@ -183,8 +194,6 @@ static void wait_for_backend(void)
         ZF_LOGI("backend_started sem value = %d", backend_started.value);
     } while (!ok_to_run);
 }
-
-/************************** main code begins here ***************************/
 
 static int virtio_proxy_init(const virtio_proxy_config_t *config)
 {
@@ -215,8 +224,9 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
         return -1;
     }
 
-    if (intervm_sink_reg_callback(intervm_callback, ctrl)) {
-        ZF_LOGE("Problem registering intervm sink callback");
+    int err = framework_init();
+    if (err) {
+        ZF_LOGE("framework_init() failed (%d)", err);
         return -1;
     }
 
@@ -239,11 +249,6 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
 }
 
 /*************************** main code ends here ****************************/
-
-static inline void backend_notify(void)
-{
-    intervm_source_emit();
-}
 
 /************************ PCI proxy code begins here ************************/
 
@@ -396,6 +401,26 @@ static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
 }
 
 /******************** CAmkES adaptation code begins here *********************/
+
+static int camkes_init(void)
+{
+    camkes_intervm_callback(ctrl);
+
+    return 0;
+}
+
+static void camkes_intervm_callback(void *opaque)
+{
+    int err = intervm_sink_reg_callback(camkes_intervm_callback, opaque);
+    assert(!err);
+
+    rpc_handler();
+}
+
+static void camkes_backend_notify(void)
+{
+    intervm_source_emit();
+}
 
 static void virtio_proxy_module_init(vm_t *_vm, void *cookie)
 {
