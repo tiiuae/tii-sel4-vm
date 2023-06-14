@@ -223,7 +223,7 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
         return -1;
     }
 
-    int err = framework_init();
+    err = framework_init();
     if (err) {
         ZF_LOGE("framework_init() failed (%d)", err);
         return -1;
