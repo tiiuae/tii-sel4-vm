@@ -100,10 +100,15 @@ static pci_proxy_t *pci_devs[16];
 static unsigned int pci_dev_count;
 static intx_t *intx;
 
-static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
+/************************ main declarations end here ************************/
+
+/******************** MMIO proxy declarations begin here ********************/
+
+static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie);
-/************************ main declarations end here ************************/
+
+/********************* MMIO proxy declarations end here *********************/
 
 /******************** PCI proxy declarations begin here *********************/
 
@@ -212,7 +217,7 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
 
     reservation = vm_reserve_memory_at(vm, config->pci_mmio_base,
                                        config->pci_mmio_size,
-                                       qemu_fault_handler, NULL);
+                                       mmio_fault_handler, NULL);
     if (!reservation) {
         ZF_LOGE("Cannot reserve PCI MMIO region");
         return -1;
@@ -357,7 +362,9 @@ static pci_proxy_t *pci_proxy_init(vm_t *vm, vmm_pci_space_t *pci)
 
 /************************* PCI proxy code ends here *************************/
 
-static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+/************************ MMIO proxy code begins here ************************/
+
+static inline void mmio_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     int err;
 
@@ -368,7 +375,7 @@ static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
     backend_notify();
 }
 
-static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+static inline void mmio_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     uint32_t mask;
     uint32_t value;
@@ -385,19 +392,21 @@ static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len
     backend_notify();
 }
 
-static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
+static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie)
 {
     if (is_vcpu_read_fault(vcpu)) {
-        qemu_read_fault(vcpu, paddr, len);
+        mmio_read_fault(vcpu, paddr, len);
     } else {
-        qemu_write_fault(vcpu, paddr, len);
+        mmio_write_fault(vcpu, paddr, len);
     }
 
     /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
 }
+
+/************************* MMIO proxy code ends here *************************/
 
 /******************** CAmkES adaptation code begins here *********************/
 
