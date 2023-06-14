@@ -110,11 +110,9 @@ static void virtio_qemu_ack(vm_vcpu_t *vcpu, int irq, void *token) {}
 
 virtio_qemu_t *virtio_qemu_init(vm_t *vm, vmm_pci_space_t *pci)
 {
-    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
-    ZF_LOGF_IF(err, "Failed to get malloc ops");
-
     virtio_qemu_t *qemu;
-    err = ps_calloc(&ops.malloc_ops, 1, sizeof(*qemu), (void **)&qemu);
+
+    int err = ps_calloc(&ops.malloc_ops, 1, sizeof(*qemu), (void **)&qemu);
     ZF_LOGF_IF(err, "Failed to allocate virtio qemu");
 
     vmm_pci_entry_t qemu_entry = vmm_virtio_qemu_pci_bar(qemu);
@@ -230,6 +228,12 @@ static void wait_for_backend(void)
 static int virtio_proxy_init(const virtio_proxy_config_t *config)
 {
     vm_memory_reservation_t *reservation;
+
+    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
+    if (err) {
+        ZF_LOGE("Failed to get malloc ops (%d)", err);
+        return -1;
+    }
 
     reservation = vm_reserve_memory_at(vm, config->pci_mmio_base,
                                        config->pci_mmio_size,
