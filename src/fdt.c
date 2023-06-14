@@ -6,7 +6,7 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
-#include <fdt_utils.h>
+#include <libfdt.h>
 
 #include <fdt_custom.h>
 
