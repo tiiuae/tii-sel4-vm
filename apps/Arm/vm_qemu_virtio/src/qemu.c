@@ -6,14 +6,11 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
-#include <camkes.h>
-#include <vmlinux.h>
 #include <sync/sem.h>
 #include <sel4vm/guest_vm.h>
 #include <sel4vm/guest_vcpu_fault.h>
 #include <sel4vm/guest_ram.h>
 #include <sel4vm/guest_memory.h>
-#include <sel4vm/boot.h>
 #include <sel4vm/guest_irq_controller.h>
 
 #include <sel4vmmplatsupport/drivers/cross_vm_connection.h>
@@ -24,24 +21,11 @@
 #include "trace.h"
 #include "ioreq.h"
 #include "pci_intx.h"
-
-#include <sel4vmmplatsupport/ioports.h>
-#include <sel4vmmplatsupport/arch/vpci.h>
-
-#include <virtioarm/virtio_plat.h>
-
-#define VIRTIO_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
+#include "virtio_proxy.h"
 
 /********************* main type definitions begin here *********************/
 
 typedef struct pci_proxy pci_proxy_t;
-
-typedef struct virtio_proxy_config {
-    unsigned int vcpu_id;
-    unsigned int irq;
-    uintptr_t pci_mmio_base;
-    size_t pci_mmio_size;
-} virtio_proxy_config_t;
 
 typedef struct virtio_proxy {
     intx_t *intx;
@@ -66,40 +50,17 @@ typedef struct pci_proxy {
 
 /******************* PCI proxy type definitions end here ********************/
 
-/******************* CAmkES adaptation externs begin here *******************/
-
-extern const int vmid;
-
-extern vka_t _vka;
-
-extern vmm_pci_space_t *pci;
-
-/******************** CAmkES adaptation externs end here ********************/
-
 /************************* main externs begin here **************************/
 
 extern void *ctrl;
 extern void *iobuf;
 
+extern int (*framework_init)(virtio_proxy_t *);
+extern void (*backend_notify)(void);
+
 /************************** main externs end here ***************************/
 
-/**************** CAmkES adaptation declarations begin here *****************/
-
-/* VM0 does not have these */
-int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
-
-static int camkes_init(virtio_proxy_t *opaque);
-static void camkes_backend_notify(void);
-static void camkes_intervm_callback(void *opaque);
-
-/***************** CAmkES adaptation declarations end here ******************/
-
 /*********************** main declarations begin here ***********************/
-
-static int (*framework_init)(virtio_proxy_t *) = camkes_init;
-static void (*backend_notify)(void) = camkes_backend_notify;
-
-virtio_proxy_t *vm0_proxy;
 
 /************************ main declarations end here ************************/
 
@@ -178,7 +139,7 @@ static rpcmsg_t *peek_sync_msg(virtio_proxy_t *proxy, rpcmsg_queue_t *q)
     }
 }
 
-static void rpc_handler(virtio_proxy_t *proxy)
+void rpc_handler(virtio_proxy_t *proxy)
 {
     ZF_LOGF_IF(proxy == NULL, "null proxy");
     rpcmsg_t *msg = peek_sync_msg(proxy, rx_queue);
@@ -201,9 +162,9 @@ static void wait_for_backend(virtio_proxy_t *proxy)
     } while (!(volatile int)proxy->ok_to_run);
 }
 
-static virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
-                                         vka_t *vka,
-                                         const virtio_proxy_config_t *config)
+virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
+                                  vka_t *vka,
+                                  const virtio_proxy_config_t *config)
 {
     vm_memory_reservation_t *reservation;
 
@@ -299,8 +260,10 @@ static inline void pci_proxy_write(void *cookie, unsigned int offset,
 static uint8_t pci_proxy_read8(void *cookie, vmm_pci_address_t addr,
                                unsigned int offset)
 {
+    pci_proxy_t *proxy = cookie;
+
     if (offset == 0x3c) {
-        return VIRTIO_PLAT_INTERRUPT_LINE;
+        return proxy->parent->config->irq;
     }
     return pci_proxy_read(cookie, offset, 1);
 }
@@ -417,52 +380,3 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
 }
 
 /************************* MMIO proxy code ends here *************************/
-
-/******************** CAmkES adaptation code begins here *********************/
-
-static int camkes_init(virtio_proxy_t *proxy)
-{
-    camkes_intervm_callback(proxy);
-
-    return 0;
-}
-
-static void camkes_intervm_callback(void *opaque)
-{
-    int err = intervm_sink_reg_callback(camkes_intervm_callback, opaque);
-    assert(!err);
-
-    rpc_handler((virtio_proxy_t *) opaque);
-}
-
-static void camkes_backend_notify(void)
-{
-    intervm_source_emit();
-}
-
-static void virtio_proxy_module_init(vm_t *vm, void *cookie)
-{
-    const virtio_proxy_config_t *config = cookie;
-
-    if (vmid == 0) {
-        ZF_LOGI("Not configuring virtio proxy for VM %d", vmid);
-        return;
-    }
-
-    vm0_proxy = virtio_proxy_init(vm, pci, &_vka, config);
-    if (vm0_proxy == NULL) {
-        ZF_LOGF("virtio_proxy_init() failed");
-        /* no return */
-    }
-}
-
-virtio_proxy_config_t virtio_proxy_config = {
-    .vcpu_id = BOOT_VCPU,
-    .irq = VIRTIO_PLAT_INTERRUPT_LINE,
-    .pci_mmio_base = PCI_MEM_REGION_ADDR,
-    .pci_mmio_size = 524288,
-};
-
-DEFINE_MODULE(virtio_proxy, &virtio_proxy_config, virtio_proxy_module_init)
-
-/********************* CAmkES adaptation code ends here **********************/

@@ -26,6 +26,7 @@ CAmkESAddImportPath(${KernelARMPlatform})
 DeclareCAmkESComponent(
     VM
     SOURCES
+    src/camkes.c
     src/cross_vm_connection.c
     src/init_dataport_ram.c
     src/pci_intx.c
