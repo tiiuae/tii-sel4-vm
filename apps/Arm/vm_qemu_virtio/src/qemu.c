@@ -41,6 +41,10 @@ typedef struct virtio_proxy_config {
     size_t pci_mmio_size;
 } virtio_proxy_config_t;
 
+typedef struct virtio_proxy {
+    intx_t *intx;
+} virtio_proxy_t;
+
 /********************** main type definitions end here **********************/
 
 /****************** PCI proxy type definitions begin here *******************/
@@ -76,7 +80,7 @@ extern vmm_pci_space_t *pci;
 /* VM0 does not have these */
 int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
 
-static int camkes_init(void);
+static int camkes_init(virtio_proxy_t *opaque);
 static void camkes_backend_notify(void);
 static void camkes_intervm_callback(void *opaque);
 
@@ -84,7 +88,7 @@ static void camkes_intervm_callback(void *opaque);
 
 /*********************** main declarations begin here ***********************/
 
-static int (*framework_init)(void) = camkes_init;
+static int (*framework_init)(virtio_proxy_t *) = camkes_init;
 static void (*backend_notify)(void) = camkes_backend_notify;
 
 static vm_t *vm;
@@ -94,11 +98,10 @@ static sync_sem_t backend_started;
 
 static volatile int ok_to_run = 0;
 
-static ps_io_ops_t ops;
-
 static pci_proxy_t *pci_devs[16];
 static unsigned int pci_dev_count;
-static intx_t *intx;
+
+virtio_proxy_t *vm0_proxy;
 
 /************************ main declarations end here ************************/
 
@@ -132,7 +135,7 @@ static void register_pci_device(void)
     pci_dev_count++;
 }
 
-static bool handle_async(rpcmsg_t *msg)
+static bool handle_async(virtio_proxy_t *proxy, rpcmsg_t *msg)
 {
     int err;
 
@@ -142,10 +145,10 @@ static bool handle_async(rpcmsg_t *msg)
             return false;
         break;
     case QEMU_OP_SET_IRQ:
-        intx_change_level(intx, msg->intx.int_source, true);
+        intx_change_level(proxy->intx, msg->intx.int_source, true);
         break;
     case QEMU_OP_CLR_IRQ:
-        intx_change_level(intx, msg->intx.int_source, false);
+        intx_change_level(proxy->intx, msg->intx.int_source, false);
         break;
     case QEMU_OP_START_VM: {
         ioreq_init(iobuf);
@@ -163,23 +166,24 @@ static bool handle_async(rpcmsg_t *msg)
     return true;
 }
 
-static rpcmsg_t *peek_sync_msg(rpcmsg_queue_t *q)
+static rpcmsg_t *peek_sync_msg(virtio_proxy_t *proxy, rpcmsg_queue_t *q)
 {
     for (;;) {
         rpcmsg_t *msg = rpcmsg_queue_head(q);
         if (!msg) {
             return NULL;
         }
-        if (!handle_async(msg)) {
+        if (!handle_async(proxy, msg)) {
             return msg;
         }
         rpcmsg_queue_advance_head(q);
     }
 }
 
-static void rpc_handler(void)
+static void rpc_handler(virtio_proxy_t *proxy)
 {
-    rpcmsg_t *msg = peek_sync_msg(rx_queue);
+    ZF_LOGF_IF(proxy == NULL, "null proxy");
+    rpcmsg_t *msg = peek_sync_msg(proxy, rx_queue);
     if (msg) {
         sync_sem_post(&handoff);
     }
@@ -199,20 +203,20 @@ static void wait_for_backend(void)
     } while (!ok_to_run);
 }
 
-static int virtio_proxy_init(const virtio_proxy_config_t *config)
+static virtio_proxy_t *virtio_proxy_init(const virtio_proxy_config_t *config)
 {
     vm_memory_reservation_t *reservation;
 
-    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
-    if (err) {
-        ZF_LOGE("Failed to get malloc ops (%d)", err);
-        return -1;
+    virtio_proxy_t *proxy = calloc(1, sizeof(*proxy));
+    if (!proxy) {
+        ZF_LOGE("Failed to allocate memory");
+        return NULL;
     }
 
-    intx = intx_init(vm->vcpus[config->vcpu_id], config->irq);
-    if (!intx) {
+    proxy->intx = intx_init(vm->vcpus[config->vcpu_id], config->irq);
+    if (!proxy->intx) {
         ZF_LOGE("intx_init() failed");
-        return -1;
+        return NULL;
     }
 
     reservation = vm_reserve_memory_at(vm, config->pci_mmio_base,
@@ -220,18 +224,18 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
                                        mmio_fault_handler, NULL);
     if (!reservation) {
         ZF_LOGE("Cannot reserve PCI MMIO region");
-        return -1;
+        return NULL;
     }
 
     if (sync_sem_new(&_vka, &handoff, 0)) {
         ZF_LOGE("Unable to allocate handoff semaphore");
-        return -1;
+        return NULL;
     }
 
-    err = framework_init();
+    err = framework_init(proxy);
     if (err) {
         ZF_LOGE("framework_init() failed (%d)", err);
-        return -1;
+        return NULL;
     }
 
     /* fdt_generate_vpci_node() uses PCI emulation callbacks to determine IRQ
@@ -242,14 +246,14 @@ static int virtio_proxy_init(const virtio_proxy_config_t *config)
      */
     if (sync_sem_new(&_vka, &backend_started, 0)) {
         ZF_LOGE("Unable to allocate backend_started semaphore");
-        return -1;
+        return NULL;
     }
 
     ZF_LOGI("waiting for virtio backend");
     wait_for_backend();
     ZF_LOGI("virtio backend up, continuing");
 
-    return 0;
+    return proxy;
 }
 
 /*************************** main code ends here ****************************/
@@ -410,9 +414,9 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
 
 /******************** CAmkES adaptation code begins here *********************/
 
-static int camkes_init(void)
+static int camkes_init(virtio_proxy_t *proxy)
 {
-    camkes_intervm_callback(ctrl);
+    camkes_intervm_callback(proxy);
 
     return 0;
 }
@@ -422,7 +426,7 @@ static void camkes_intervm_callback(void *opaque)
     int err = intervm_sink_reg_callback(camkes_intervm_callback, opaque);
     assert(!err);
 
-    rpc_handler();
+    rpc_handler((virtio_proxy_t *) opaque);
 }
 
 static void camkes_backend_notify(void)
@@ -441,9 +445,9 @@ static void virtio_proxy_module_init(vm_t *_vm, void *cookie)
         return;
     }
 
-    int err = virtio_proxy_init(config);
-    if (err) {
-        ZF_LOGF("virtio_proxy_init() failed (%d)", err);
+    vm0_proxy = virtio_proxy_init(config);
+    if (vm0_proxy == NULL) {
+        ZF_LOGF("virtio_proxy_init() failed");
         /* no return */
     }
 }
