@@ -25,39 +25,42 @@
 #define ioreq_is_mmio(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_MMIO)
 #define ioreq_is_pci(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_PCI)
 
+typedef struct io_proxy {
+    void *ctrl;
+    struct sel4_iohandler_buffer *iobuf;
+} io_proxy_t;
 
-static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
-                                                   int slot)
+static inline struct sel4_ioreq *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy,
+                                                        int slot)
 {
     if (!ioreq_slot_valid(slot))
         return NULL;
 
-    return iobuf->request_slots + slot;
+    return io_proxy->iobuf->request_slots + slot;
 }
 
-static int ioreq_next_free_slot(struct sel4_iohandler_buffer *iobuf)
+static int io_proxy_next_free_slot(io_proxy_t *io_proxy)
 {
     for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
-        if (ioreq_state_free(ioreq_slot_to_ptr(iobuf, i)))
+        if (ioreq_state_free(io_proxy_slot_to_ioreq(io_proxy, i)))
             return i;
     }
 
     return -1;
 }
 
-int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
-                     vm_vcpu_t *vcpu, unsigned int direction,
-                     uintptr_t offset, size_t size,
+int ioreq_mmio_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
+                     unsigned int direction, uintptr_t offset, size_t size,
                      uint64_t val)
 {
     struct sel4_ioreq *ioreq;
     struct sel4_ioreq_mmio *mmio;
 
-    assert(iobuf && vcpu && size >= 0 && size <= sizeof(val));
+    assert(io_proxy && vcpu && size >= 0 && size <= sizeof(val));
 
-    int slot = ioreq_next_free_slot(iobuf);
+    int slot = io_proxy_next_free_slot(io_proxy);
 
-    ioreq = ioreq_slot_to_ptr(iobuf, slot);
+    ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
     if (!ioreq)
         return -1;
 
@@ -79,16 +82,14 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
     return slot;
 }
 
-int ioreq_mmio_finish(vm_t *vm,
-                      struct sel4_iohandler_buffer *iobuf,
-                      unsigned int slot)
+int ioreq_mmio_finish(vm_t *vm, io_proxy_t *io_proxy, unsigned int slot)
 {
     struct sel4_ioreq *ioreq;
     struct sel4_ioreq_mmio *mmio;
 
-    assert(iobuf);
+    assert(io_proxy);
 
-    ioreq = ioreq_slot_to_ptr(iobuf, slot);
+    ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
     assert(ioreq);
 
     /* io request not for us, or not complete */
@@ -116,16 +117,15 @@ int ioreq_mmio_finish(vm_t *vm,
     return 0;
 }
 
-int ioreq_pci_start(struct sel4_iohandler_buffer *iobuf,
-                    unsigned int pcidev, unsigned int direction,
-                    uintptr_t offset, size_t size,
+int ioreq_pci_start(io_proxy_t *io_proxy, unsigned int pcidev,
+                    unsigned int direction, uintptr_t offset, size_t size,
                     uint32_t value)
 {
-    assert(iobuf && size >= 0 && size <= sizeof(value));
+    assert(io_proxy && size >= 0 && size <= sizeof(value));
 
-    int slot = ioreq_next_free_slot(iobuf);
+    int slot = io_proxy_next_free_slot(io_proxy);
 
-    struct sel4_ioreq *ioreq = ioreq_slot_to_ptr(iobuf, slot);
+    struct sel4_ioreq *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
     if (!ioreq)
         return -1;
 
@@ -147,16 +147,15 @@ int ioreq_pci_start(struct sel4_iohandler_buffer *iobuf,
     return slot;
 }
 
-uint32_t ioreq_pci_finish(struct sel4_iohandler_buffer *iobuf,
-                          unsigned int slot)
+uint32_t ioreq_pci_finish(io_proxy_t *io_proxy, unsigned int slot)
 {
     uint32_t data = 0;
     struct sel4_ioreq *ioreq;
     struct sel4_ioreq_pci *pci;
 
-    assert(iobuf);
+    assert(io_proxy);
 
-    ioreq = ioreq_slot_to_ptr(iobuf, slot);
+    ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
     assert(ioreq);
 
     if (!ioreq_state_complete(ioreq)) {
@@ -174,10 +173,31 @@ uint32_t ioreq_pci_finish(struct sel4_iohandler_buffer *iobuf,
     return data;
 }
 
-void ioreq_init(struct sel4_iohandler_buffer *iobuf)
+io_proxy_t *io_proxy_init(void *ctrl, void *iobuf)
 {
+    io_proxy_t *io_proxy;
+    ps_io_ops_t ops;
+
+    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
+    if (err) {
+        ZF_LOGE("Failed to get malloc ops (%d)", err);
+        return NULL;
+    }
+
+    err = ps_calloc(&ops.malloc_ops, 1, sizeof(*io_proxy), (void **)&io_proxy);
+    if (err) {
+        ZF_LOGE("Failed to allocate memory (%d)", err);
+        return NULL;
+    }
+
+    io_proxy->ctrl = ctrl;
+    io_proxy->iobuf = (struct sel4_iohandler_buffer *)iobuf;
+
     for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
-        ioreq_set_state(ioreq_slot_to_ptr(iobuf, i), SEL4_IOREQ_STATE_FREE);
+        ioreq_set_state(io_proxy_slot_to_ioreq(io_proxy, i),
+                        SEL4_IOREQ_STATE_FREE);
     }
     mb();
+
+    return io_proxy;
 }

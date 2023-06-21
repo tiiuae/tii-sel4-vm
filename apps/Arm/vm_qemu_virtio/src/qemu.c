@@ -62,6 +62,8 @@ extern void (*backend_notify)(void);
 
 /*********************** main declarations begin here ***********************/
 
+static io_proxy_t *io_proxy;
+
 /************************ main declarations end here ************************/
 
 /******************** MMIO proxy declarations begin here ********************/
@@ -100,7 +102,7 @@ static bool handle_async(virtio_proxy_t *proxy, rpcmsg_t *msg)
 
     switch (QEMU_OP(msg->mr.mr0)) {
     case QEMU_OP_IO_HANDLED:
-        if (ioreq_mmio_finish(proxy->vm, iobuf, msg->mr.mr1))
+        if (ioreq_mmio_finish(proxy->vm, io_proxy, msg->mr.mr1))
             return false;
         break;
     case QEMU_OP_SET_IRQ:
@@ -183,6 +185,12 @@ virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
         return NULL;
     }
 
+    io_proxy = io_proxy_init(ctrl, iobuf);
+    if (!io_proxy) {
+        ZF_LOGE("io_proxy_init() failed");
+        return NULL;
+    }
+
     reservation = vm_reserve_memory_at(proxy->vm, config->pci_mmio_base,
                                        config->pci_mmio_size,
                                        mmio_fault_handler, NULL);
@@ -195,8 +203,6 @@ virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
         ZF_LOGE("Unable to allocate handoff semaphore");
         return NULL;
     }
-
-    ioreq_init(iobuf);
 
     err = framework_init(proxy);
     if (err) {
@@ -230,13 +236,13 @@ static inline uint32_t pci_proxy_start(pci_proxy_t *dev, unsigned int dir,
                                        uintptr_t offset, size_t size,
                                        uint32_t value)
 {
-    int slot = ioreq_pci_start(iobuf, dev->idx, dir, offset, size, value);
+    int slot = ioreq_pci_start(io_proxy, dev->idx, dir, offset, size, value);
     assert(ioreq_slot_valid(slot));
 
     backend_notify();
     sync_sem_wait(&dev->parent->handoff);
 
-    value = ioreq_pci_finish(iobuf, slot);
+    value = ioreq_pci_finish(io_proxy, slot);
     rpcmsg_queue_advance_head(rx_queue);
 
     return value;
@@ -342,7 +348,7 @@ static inline void mmio_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     int err;
 
-    err = ioreq_mmio_start(iobuf, vcpu, SEL4_IO_DIR_READ, paddr, len, 0);
+    err = ioreq_mmio_start(io_proxy, vcpu, SEL4_IO_DIR_READ, paddr, len, 0);
     if (err < 0) {
         ZF_LOGF("Failure starting mmio read request");
     }
@@ -359,7 +365,7 @@ static inline void mmio_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len
     mask = get_vcpu_fault_data_mask(vcpu) >> s;
     value = get_vcpu_fault_data(vcpu) & mask;
 
-    err = ioreq_mmio_start(iobuf, vcpu, SEL4_IO_DIR_WRITE, paddr, len, value);
+    err = ioreq_mmio_start(io_proxy, vcpu, SEL4_IO_DIR_WRITE, paddr, len, value);
     if (err < 0) {
         ZF_LOGF("Failure starting mmio write request");
     }
