@@ -15,28 +15,12 @@ typedef unsigned long seL4_Word;
 #define debug_printf(fmt, ...) printf(fmt "\n", ## __VA_ARGS__)
 #endif
 
-typedef struct {
-    size_t sz;
-    char data[1024];
-} logbuffer_t;
-
-
-#ifndef QEMU
-/* to QEMU */
-#define tx_queue (((rpcmsg_queue_t *) ctrl) + 0)
-
-/* from QEMU */
-#define rx_queue (((rpcmsg_queue_t *) ctrl) + 1)
-
-#define logbuffer ((logbuffer_t *)(rx_queue + 1))
-#else
+#ifdef QEMU
 /* from VMM */
 #define rx_queue (((rpcmsg_queue_t *) dataports[DP_CTRL].data) + 0)
 
 /* to VMM */
 #define tx_queue (((rpcmsg_queue_t *) dataports[DP_CTRL].data) + 1)
-
-#define logbuffer ((logbuffer_t *)(tx_queue + 1))
 #endif
 
 /* from VMM to QEMU */

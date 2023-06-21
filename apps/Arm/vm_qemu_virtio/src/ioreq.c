@@ -10,8 +10,8 @@
 
 #include "ioreq.h"
 
-#define ioreq_to_mmio(_ioreq) (&(_ioreq)->req.mmio)
-#define ioreq_to_pci(_ioreq) (&(_ioreq)->req.pci)
+#define ADDR_SPACE_GLOBAL               ~0
+#define ADDR_SPACE_PCI_CFG(__pcidev)    (__pcidev)
 
 #define mb() __sync_synchronize()
 #define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
@@ -22,10 +22,6 @@
 
 #define ioreq_state_complete(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_COMPLETE)
 #define ioreq_state_free(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_FREE)
-
-#define ioreq_is_type(_ioreq, _type) ((_ioreq)->type == (_type))
-#define ioreq_is_mmio(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_MMIO)
-#define ioreq_is_pci(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_PCI)
 
 typedef ioack_result_t (*ioack_callback_t)(ioreq_t *, void *);
 
@@ -43,7 +39,10 @@ typedef struct io_proxy {
     void *ctrl;
     ioack_t ioacks[SEL4_MAX_IOREQS];
     struct sel4_iohandler_buffer *iobuf;
+    rpcmsg_queue_t *rx_queue;
     vka_t *vka;
+    rpc_callback_t rpc_callback;
+    void *rpc_cookie;
 } io_proxy_t;
 
 static __thread ioack_sync_t *ioack_sync_data = NULL;
@@ -52,7 +51,7 @@ static ioack_sync_t *ioack_sync_prepare(vka_t *vka);
 static ioack_result_t ioack_vcpu(ioreq_t *ioreq, void *cookie);
 static ioack_result_t ioack_sync(ioreq_t *ioreq, void *cookie);
 
-static int ioreq_pci_wait(io_proxy_t *io_proxy, int slot, uint64_t *value);
+static ps_io_ops_t ops;
 
 static inline ioreq_t *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy, int slot)
 {
@@ -85,36 +84,94 @@ int ioreq_mmio_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
                      unsigned int direction, uintptr_t offset, size_t size,
                      uint64_t val)
 {
-    struct sel4_ioreq_mmio *mmio;
+    int slot;
 
-    assert(io_proxy && vcpu && size >= 0 && size <= sizeof(val));
+    slot = io_proxy_start(io_proxy, vcpu, ADDR_SPACE_GLOBAL, direction,
+                          offset, size, val);
+
+    return (slot < 0) ? -1 : 0;
+}
+
+static int io_proxy_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
+                           uint32_t addr_space, unsigned int direction,
+                           uintptr_t offset, size_t size, uint64_t val)
+{
+    if (!io_proxy) {
+        return -1;
+    }
 
     int slot = io_proxy_next_free_slot(io_proxy);
+    if (slot < 0) {
+        return -1;
+    }
 
     ioreq_t *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
     ioack_t *ioack = io_proxy_slot_to_ioack(io_proxy, slot);
-    if (!ioreq)
-        return -1;
 
-    mmio = ioreq_to_mmio(ioreq);
-    mmio->direction = direction;
-    mmio->vcpu = vcpu->vcpu_id;
-    mmio->addr = offset;
-    mmio->len = size;
+    ioreq->direction = direction;
+    ioreq->addr_space = addr_space;
+    ioreq->addr = offset;
+    ioreq->len = size;
     if (direction == SEL4_IO_DIR_WRITE) {
-        memcpy(&mmio->data, &val, size);
+        memcpy(&ioreq->data, &val, size);
     } else {
-        mmio->data = 0;
+        ioreq->data = 0;
     }
 
-    ioack->callback = ioack_vcpu;
-    ioack->cookie = vcpu;
+    if (vcpu) {
+        ioack->callback = ioack_vcpu;
+        ioack->cookie = vcpu;
+    } else {
+        ioack->callback = ioack_sync;
+        ioack->cookie = ioack_sync_prepare(io_proxy->vka);
+    }
 
-    ioreq->type = SEL4_IOREQ_TYPE_MMIO;
+    if (!ioack->callback || !ioack->cookie) {
+        return -1;
+    }
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
 
     return slot;
+}
+
+int ioreq_pci_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
+                    unsigned int pcidev, unsigned int direction,
+                    uintptr_t offset, size_t size, uint32_t value)
+{
+    int slot;
+
+    slot = io_proxy_start(io_proxy, vcpu, ADDR_SPACE_PCI_CFG(pcidev),
+                          direction, offset, size, value);
+
+    return (slot < 0) ? -1 : 0;
+}
+
+int ioreq_wait(io_proxy_t *io_proxy, int slot, uint64_t *value)
+{
+    if (!io_proxy) {
+        return -1;
+    }
+
+    ioreq_t *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
+    ioack_t *ioack = io_proxy_slot_to_ioack(io_proxy, slot);
+
+    if (!ioreq || !ioack || !ioack->callback) {
+        return -1;
+    }
+
+    if (ioack->callback != ioack_sync) {
+        return 0;
+    }
+
+    ioack_sync_t *sync = (ioack_sync_t *)ioack->cookie;
+    sync_sem_wait(&sync->handoff);
+
+    if (ioreq->direction == SEL4_IO_DIR_READ && value != NULL) {
+        *value = sync->data;
+    }
+
+    return 0;
 }
 
 /* Since ioack_sync_data is per-thread structure, the thread using it
@@ -142,54 +199,33 @@ static ioack_sync_t *ioack_sync_prepare(vka_t *vka)
     return ioack_sync_data;
 }
 
-int ioreq_pci_start(io_proxy_t *io_proxy, unsigned int pcidev,
-                    unsigned int direction, uintptr_t offset, size_t size,
-                    uint32_t value)
+static ioack_result_t ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
 {
-    assert(io_proxy && size >= 0 && size <= sizeof(value));
-
-    int slot = io_proxy_next_free_slot(io_proxy);
+    if (!io_proxy) {
+        return IOACK_ERROR;
+    }
 
     ioreq_t *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
     ioack_t *ioack = io_proxy_slot_to_ioack(io_proxy, slot);
-    if (!ioreq)
-        return -1;
 
-    struct sel4_ioreq_pci *pci = ioreq_to_pci(ioreq);
-    pci->direction = direction;
-    pci->pcidev = pcidev;
-    pci->addr = offset;
-    pci->len = size;
-    if (direction == SEL4_IO_DIR_WRITE) {
-        memcpy(&pci->data, &value, size);
-    } else {
-        pci->data = 0;
+    if (!ioreq || !ioack || !ioack->callback) {
+        return IOACK_ERROR;
     }
 
-    ioack->callback = ioack_sync;
-    ioack->cookie = ioack_sync_prepare(io_proxy->vka);
-
-    ioreq->type = SEL4_IOREQ_TYPE_PCI;
-
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
-
-    return slot;
-}
-
-uint32_t ioreq_pci_finish(io_proxy_t *io_proxy, unsigned int slot)
-{
-    uint64_t data = 0;
-
-    int err = ioreq_wait(io_proxy, slot, &data);
-    if (err) {
-        ZF_LOGE("ioreq_wait() failed");
-        return 0;
+    if (!ioreq_state_complete(ioreq)) {
+        return IOACK_ERROR;
     }
 
-    return data;
+    ioack_result_t res = ioack->callback(ioack->cookie);
+
+    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
+
+    return res;
 }
 
-io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka)
+io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka,
+                          rpc_callback_t rpc_callback,
+                          void *rpc_cookie)
 {
     io_proxy_t *io_proxy;
     ps_io_ops_t ops;
@@ -215,6 +251,12 @@ io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka)
         ioreq_set_state(io_proxy_slot_to_ioreq(io_proxy, i),
                         SEL4_IOREQ_STATE_FREE);
     }
+
+    io_proxy->rpc_callback = rpc_callback;
+    io_proxy->rpc_cookie = rpc_cookie;
+
+    io_proxy->rx_queue = (((rpcmsg_queue_t *) io_proxy->ctrl) + 1);
+
     mb();
 
     return io_proxy;
@@ -223,14 +265,13 @@ io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka)
 static ioack_result_t ioack_vcpu(ioreq_t *ioreq, void *cookie)
 {
     vm_vcpu_t *vcpu = cookie;
-    struct sel4_ioreq_mmio *mmio = ioreq_to_mmio(ioreq);
 
-    if (mmio->direction == SEL4_IO_DIR_READ) {
+    if (ioreq->direction == SEL4_IO_DIR_READ) {
         seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
         seL4_Word data = 0;
 
-        assert(mmio->len <= sizeof(data));
-        memcpy(&data, &mmio->data, mmio->len);
+        assert(ioreq->len <= sizeof(data));
+        memcpy(&data, &ioreq->data, ioreq->len);
 
         set_vcpu_fault_data(vcpu, data << s);
     }
@@ -243,11 +284,10 @@ static ioack_result_t ioack_vcpu(ioreq_t *ioreq, void *cookie)
 static ioack_result_t ioack_sync(ioreq_t *ioreq, void *cookie)
 {
     ioack_sync_t *sync = cookie;
-    struct sel4_ioreq_pci *pci = ioreq_to_pci(ioreq);
 
-    if (pci->direction == SEL4_IO_DIR_READ) {
+    if (ioreq->direction == SEL4_IO_DIR_READ) {
         sync->data = 0;
-        memcpy(&sync->data, &pci->data, pci->len);
+        memcpy(&sync->data, &ioreq->data, ioreq->len);
     }
 
     sync_sem_post(&sync->handoff);
@@ -255,56 +295,28 @@ static ioack_result_t ioack_sync(ioreq_t *ioreq, void *cookie)
     return IOACK_OK;
 }
 
-ioack_result_t ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
+void io_proxy_process(io_proxy_t *io_proxy)
 {
-    if (!io_proxy) {
-        return IOACK_ERROR;
+    rpcmsg_queue_t *q = io_proxy->rx_queue;
+
+    for (;;) {
+        rpcmsg_t *msg = rpcmsg_queue_head(q);
+        if (!msg) {
+            break;
+        }
+
+        ioack_result_t result;
+        if (QEMU_OP(msg->mr.mr0) == QEMU_OP_IO_HANDLED) {
+            result = ioreq_finish(io_proxy, msg->mr.mr1);
+        } else {
+            result = io_proxy->rpc_callback(msg, io_proxy->rpc_cookie);
+        }
+
+        if (result == IOACK_ERROR) {
+            ZF_LOGF("IO acknowledge error, no point continuing");
+            /* no return */
+        }
+
+        rpcmsg_queue_advance_head(q);
     }
-
-    ioreq_t *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
-    ioack_t *ioack = io_proxy_slot_to_ioack(io_proxy, slot);
-
-    if (!ioreq || !ioack || !ioack->callback) {
-        return IOACK_ERROR;
-    }
-
-    if (!ioreq_state_complete(ioreq)) {
-        return IOACK_ERROR;
-    }
-
-    ioack_result_t res = ioack->callback(ioreq, ioack->cookie);
-
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
-
-    return res;
-
-}
-
-static int ioreq_pci_wait(io_proxy_t *io_proxy, int slot, uint64_t *value)
-{
-    if (!io_proxy) {
-        return -1;
-    }
-
-    ioreq_t *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
-    ioack_t *ioack = io_proxy_slot_to_ioack(io_proxy, slot);
-
-    if (!ioreq || !ioack || !ioack->callback) {
-        return -1;
-    }
-
-    if (ioack->callback != ioack_sync) {
-        return 0;
-    }
-
-    ioack_sync_t *sync = (ioack_sync_t *)ioack->cookie;
-    sync_sem_wait(&sync->handoff);
-
-    struct sel4_ioreq_pci *pci = ioreq_to_pci(ioreq);
-
-    if (pci->direction == SEL4_IO_DIR_READ && value != NULL) {
-        *value = sync->data;
-    }
-
-    return 0;
 }

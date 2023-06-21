@@ -23,21 +23,38 @@ extern const int vmid;
 extern vka_t _vka;
 extern vmm_pci_space_t *pci;
 
+/* TODO: support multi-VM */
+extern void *ctrl;
+extern void *iobuf;
+
+/* TODO: support multi-VM */
 static virtio_proxy_t *vm0_proxy;
 
-static int camkes_init(virtio_proxy_t *opaque);
+static int camkes_init(io_proxy_t *opaque);
 static void camkes_backend_notify(void);
 static void camkes_intervm_callback(void *opaque);
 
 /* VM0 does not have these */
 int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
 
-int (*framework_init)(virtio_proxy_t *) = camkes_init;
+int (*framework_init)(io_proxy_t *) = camkes_init;
 void (*backend_notify)(void) = camkes_backend_notify;
 
-static int camkes_init(virtio_proxy_t *proxy)
+void *framework_get_ctrl_shm(const virtio_proxy_config_t *config)
 {
-    camkes_intervm_callback(proxy);
+    /* TODO: support multi-VM */
+    return ctrl;
+}
+
+void *framework_get_iobuf_shm(const virtio_proxy_config_t *config)
+{
+    /* TODO: support multi-VM */
+    return iobuf;
+}
+
+static int camkes_init(io_proxy_t *io_proxy)
+{
+    camkes_intervm_callback(io_proxy);
 
     return 0;
 }
@@ -47,7 +64,7 @@ static void camkes_intervm_callback(void *opaque)
     int err = intervm_sink_reg_callback(camkes_intervm_callback, opaque);
     assert(!err);
 
-    rpc_handler((virtio_proxy_t *) opaque);
+    io_proxy_process((io_proxy_t *)opaque);
 }
 
 static void camkes_backend_notify(void)
@@ -59,6 +76,7 @@ static void virtio_proxy_module_init(vm_t *vm, void *cookie)
 {
     const virtio_proxy_config_t *config = cookie;
 
+    /* TODO: support multi-VM */
     if (vmid == 0) {
         ZF_LOGI("Not configuring virtio proxy for VM %d", vmid);
         return;

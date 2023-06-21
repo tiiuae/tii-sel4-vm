@@ -25,42 +25,23 @@ struct sel4_vm_params {
 #define SEL4_IOREQ_TYPE_MMIO		0U
 #define SEL4_IOREQ_TYPE_PCI		1U
 
-struct sel4_ioreq_mmio {
-	__u32	direction;
-	__u32   vcpu;
-	__u64	addr;
-	__u64	len;
-	__u64	data;
-};
-
-struct sel4_ioreq_pci {
-	__u32	direction;
-	__u32	pcidev;
-	__u32	addr;
-	__u32	len;
-	__u32	data;
-	__u32   reserved0;
-};
-
 typedef struct sel4_ioreq {
-	__u32   state;
-	__u32   type;
-	union {
-		struct sel4_ioreq_mmio	mmio;
-		struct sel4_ioreq_pci	pci;
-		__u64			data[8];
-	} req;
+    __u16 state;
+    __u16 direction;
+    __u32 addr_space;
+    __u64 addr;
+    __u64 len;
+    __u64 data;
 } __attribute__((aligned(128))) ioreq_t;
-
 
 #define SEL4_IOREQ_SLOT_VALID(_slot) \
 	((_slot) >= 0 && (_slot) < (SEL4_MAX_IOREQS))
 
 struct sel4_iohandler_buffer {
-	union {
-		ioreq_t	request_slots[SEL4_MAX_IOREQS];
-		__u8			reserved[SEL4_IOREQ_MMAP_SIZE];
-	};
+    union {
+        ioreq_t request_slots[SEL4_MAX_IOREQS];
+        __u8 reserved[SEL4_IOREQ_MMAP_SIZE];
+    };
 };
 
 struct sel4_vpci_device {
