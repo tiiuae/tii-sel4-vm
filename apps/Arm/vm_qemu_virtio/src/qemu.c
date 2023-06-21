@@ -110,7 +110,6 @@ static bool handle_async(virtio_proxy_t *proxy, rpcmsg_t *msg)
         intx_change_level(proxy->intx, msg->intx.int_source, false);
         break;
     case QEMU_OP_START_VM: {
-        ioreq_init(iobuf);
         proxy->ok_to_run = 1;
         sync_sem_post(&proxy->backend_started);
         break;
@@ -196,6 +195,8 @@ virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
         ZF_LOGE("Unable to allocate handoff semaphore");
         return NULL;
     }
+
+    ioreq_init(iobuf);
 
     err = framework_init(proxy);
     if (err) {
