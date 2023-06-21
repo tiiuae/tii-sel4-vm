@@ -193,7 +193,7 @@ virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
 
     reservation = vm_reserve_memory_at(proxy->vm, config->pci_mmio_base,
                                        config->pci_mmio_size,
-                                       mmio_fault_handler, NULL);
+                                       mmio_fault_handler, io_proxy);
     if (!reservation) {
         ZF_LOGE("Cannot reserve PCI MMIO region");
         return NULL;
@@ -344,45 +344,34 @@ static pci_proxy_t *pci_proxy_init(virtio_proxy_t *virtio_proxy)
 
 /************************ MMIO proxy code begins here ************************/
 
-static inline void mmio_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
-{
-    int err;
-
-    err = ioreq_mmio_start(io_proxy, vcpu, SEL4_IO_DIR_READ, paddr, len, 0);
-    if (err < 0) {
-        ZF_LOGF("Failure starting mmio read request");
-    }
-    backend_notify();
-}
-
-static inline void mmio_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
-{
-    uint32_t mask;
-    uint32_t value;
-    int err;
-
-    seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-    mask = get_vcpu_fault_data_mask(vcpu) >> s;
-    value = get_vcpu_fault_data(vcpu) & mask;
-
-    err = ioreq_mmio_start(io_proxy, vcpu, SEL4_IO_DIR_WRITE, paddr, len, value);
-    if (err < 0) {
-        ZF_LOGF("Failure starting mmio write request");
-    }
-    backend_notify();
-}
-
 static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie)
 {
+    io_proxy_t *io_proxy = cookie;
+    uint32_t value;
+    uint32_t direction;
+    int err;
+
     if (is_vcpu_read_fault(vcpu)) {
-        mmio_read_fault(vcpu, paddr, len);
+        value = 0;
+        direction = SEL4_IO_DIR_READ;
     } else {
-        mmio_write_fault(vcpu, paddr, len);
+        seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
+        uint32_t mask = get_vcpu_fault_data_mask(vcpu) >> s;
+        value = get_vcpu_fault_data(vcpu) & mask;
+        direction = SEL4_IO_DIR_WRITE;
     }
 
-    /* Let's not advance the fault here -- the reply from QEMU does that */
+    err = ioreq_mmio_start(io_proxy, vcpu, direction, paddr, len, value);
+    if (err < 0) {
+        ZF_LOGE("Failure starting MMIO request");
+        return FAULT_ERROR;
+    }
+
+    backend_notify();
+
+    /* Let's not advance the fault here -- the reply from backend does that */
     return FAULT_HANDLED;
 }
 
