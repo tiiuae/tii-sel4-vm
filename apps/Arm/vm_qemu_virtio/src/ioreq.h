@@ -30,7 +30,7 @@ int ioreq_mmio_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
                      unsigned int direction, uintptr_t offset, size_t size,
                      uint64_t val);
 
-int ioreq_mmio_finish(vm_t *vm, io_proxy_t *io_proxy, unsigned int slot);
+ioack_result_t ioreq_finish(io_proxy_t *io_proxy, unsigned int slot);
 
 int ioreq_pci_start(io_proxy_t *io_proxy, unsigned int pcidev,
                     unsigned int direction, uintptr_t offset, size_t size,
