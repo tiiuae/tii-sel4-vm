@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <sync/sem.h>
+
 #include <sel4vm/guest_vcpu_fault.h>
 
 #include "ioreq.h"
@@ -25,10 +27,28 @@
 #define ioreq_is_mmio(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_MMIO)
 #define ioreq_is_pci(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_PCI)
 
+typedef ioack_result_t (*ioack_callback_t)(ioreq_t *, void *);
+
+typedef struct ioack {
+    ioack_callback_t callback;
+    void *cookie;
+} ioack_t;
+
+typedef struct {
+    sync_sem_t handoff;
+    uint64_t data;
+} ioack_sync_t;
+
 typedef struct io_proxy {
     void *ctrl;
+    ioack_t ioacks[SEL4_MAX_IOREQS];
     struct sel4_iohandler_buffer *iobuf;
+    vka_t *vka;
 } io_proxy_t;
+
+static __thread ioack_sync_t *ioack_sync_data = NULL;
+
+static ioack_sync_t *ioack_sync_prepare(vka_t *vka);
 
 static inline ioreq_t *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy, int slot)
 {
@@ -36,6 +56,15 @@ static inline ioreq_t *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy, int slot)
         return NULL;
 
     return io_proxy->iobuf->request_slots + slot;
+}
+
+static inline ioack_t *io_proxy_slot_to_ioack(io_proxy_t *io_proxy, int slot)
+{
+    if (!ioreq_slot_valid(slot)) {
+        return NULL;
+    }
+
+    return io_proxy->ioacks + slot;
 }
 
 static int io_proxy_next_free_slot(io_proxy_t *io_proxy)
@@ -116,6 +145,31 @@ int ioreq_mmio_finish(vm_t *vm, io_proxy_t *io_proxy, unsigned int slot)
     return 0;
 }
 
+/* Since ioack_sync_data is per-thread structure, the thread using it
+ * and the thread calling io_proxy_init() are not necessarily the
+ * same.
+ */
+static ioack_sync_t *ioack_sync_prepare(vka_t *vka)
+{
+    if (ioack_sync_data) {
+        return ioack_sync_data;
+    }
+
+    ioack_sync_data = (ioack_sync_t *)calloc(1, sizeof(*ioack_sync_data));
+    if (!ioack_sync_data) {
+        ZF_LOGE("Failed to allocate memory");
+        return NULL;
+    }
+
+    int err = sync_sem_new(vka, &ioack_sync_data->handoff, 0);
+    if (err) {
+        ZF_LOGE("Unable to allocate handoff semaphore (%d)", err);
+        return NULL;
+    }
+
+    return ioack_sync_data;
+}
+
 int ioreq_pci_start(io_proxy_t *io_proxy, unsigned int pcidev,
                     unsigned int direction, uintptr_t offset, size_t size,
                     uint32_t value)
@@ -172,10 +226,12 @@ uint32_t ioreq_pci_finish(io_proxy_t *io_proxy, unsigned int slot)
     return data;
 }
 
-io_proxy_t *io_proxy_init(void *ctrl, void *iobuf)
+io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka)
 {
     io_proxy_t *io_proxy;
     ps_io_ops_t ops;
+
+    io_proxy->vka = vka;
 
     int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
     if (err) {

@@ -185,7 +185,7 @@ virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
         return NULL;
     }
 
-    io_proxy = io_proxy_init(ctrl, iobuf);
+    io_proxy = io_proxy_init(ctrl, iobuf, vka);
     if (!io_proxy) {
         ZF_LOGE("io_proxy_init() failed");
         return NULL;

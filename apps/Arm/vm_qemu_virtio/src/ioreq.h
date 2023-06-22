@@ -17,6 +17,13 @@ typedef uint64_t __u64;
 
 #define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
 
+typedef enum {
+    IOACK_OK,
+    IOACK_ERROR,
+} ioack_result_t;
+
+typedef struct vka vka_t;
+
 typedef struct io_proxy io_proxy_t;
 
 int ioreq_mmio_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
@@ -31,4 +38,4 @@ int ioreq_pci_start(io_proxy_t *io_proxy, unsigned int pcidev,
 
 uint32_t ioreq_pci_finish(io_proxy_t *io_proxy, unsigned int slot);
 
-io_proxy_t *io_proxy_init(void *ctrl, void *iobuf);
+io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka);
