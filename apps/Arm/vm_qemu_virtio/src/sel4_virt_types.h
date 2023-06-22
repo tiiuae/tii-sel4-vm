@@ -42,7 +42,7 @@ struct sel4_ioreq_pci {
 	__u32   reserved0;
 };
 
-struct sel4_ioreq {
+typedef struct sel4_ioreq {
 	__u32   state;
 	__u32   type;
 	union {
@@ -50,7 +50,7 @@ struct sel4_ioreq {
 		struct sel4_ioreq_pci	pci;
 		__u64			data[8];
 	} req;
-} __attribute__((aligned(128)));
+} __attribute__((aligned(128))) ioreq_t;
 
 
 #define SEL4_IOREQ_SLOT_VALID(_slot) \
@@ -58,7 +58,7 @@ struct sel4_ioreq {
 
 struct sel4_iohandler_buffer {
 	union {
-		struct sel4_ioreq	request_slots[SEL4_MAX_IOREQS];
+		ioreq_t	request_slots[SEL4_MAX_IOREQS];
 		__u8			reserved[SEL4_IOREQ_MMAP_SIZE];
 	};
 };

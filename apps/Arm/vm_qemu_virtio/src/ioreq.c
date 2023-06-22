@@ -30,8 +30,7 @@ typedef struct io_proxy {
     struct sel4_iohandler_buffer *iobuf;
 } io_proxy_t;
 
-static inline struct sel4_ioreq *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy,
-                                                        int slot)
+static inline ioreq_t *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy, int slot)
 {
     if (!ioreq_slot_valid(slot))
         return NULL;
@@ -53,7 +52,7 @@ int ioreq_mmio_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
                      unsigned int direction, uintptr_t offset, size_t size,
                      uint64_t val)
 {
-    struct sel4_ioreq *ioreq;
+    ioreq_t *ioreq;
     struct sel4_ioreq_mmio *mmio;
 
     assert(io_proxy && vcpu && size >= 0 && size <= sizeof(val));
@@ -84,7 +83,7 @@ int ioreq_mmio_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
 
 int ioreq_mmio_finish(vm_t *vm, io_proxy_t *io_proxy, unsigned int slot)
 {
-    struct sel4_ioreq *ioreq;
+    ioreq_t *ioreq;
     struct sel4_ioreq_mmio *mmio;
 
     assert(io_proxy);
@@ -125,7 +124,7 @@ int ioreq_pci_start(io_proxy_t *io_proxy, unsigned int pcidev,
 
     int slot = io_proxy_next_free_slot(io_proxy);
 
-    struct sel4_ioreq *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
+    ioreq_t *ioreq = io_proxy_slot_to_ioreq(io_proxy, slot);
     if (!ioreq)
         return -1;
 
@@ -150,7 +149,7 @@ int ioreq_pci_start(io_proxy_t *io_proxy, unsigned int pcidev,
 uint32_t ioreq_pci_finish(io_proxy_t *io_proxy, unsigned int slot)
 {
     uint32_t data = 0;
-    struct sel4_ioreq *ioreq;
+    ioreq_t *ioreq;
     struct sel4_ioreq_pci *pci;
 
     assert(io_proxy);
