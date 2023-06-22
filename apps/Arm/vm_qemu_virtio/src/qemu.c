@@ -102,7 +102,7 @@ static bool handle_async(virtio_proxy_t *proxy, rpcmsg_t *msg)
 
     switch (QEMU_OP(msg->mr.mr0)) {
     case QEMU_OP_IO_HANDLED:
-        if (ioreq_mmio_finish(proxy->vm, io_proxy, msg->mr.mr1))
+        if (ioreq_finish(io_proxy, msg->mr.mr1))
             return false;
         break;
     case QEMU_OP_SET_IRQ:
