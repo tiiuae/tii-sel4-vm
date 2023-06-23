@@ -51,8 +51,6 @@ static ioack_sync_t *ioack_sync_prepare(vka_t *vka);
 static ioack_result_t ioack_vcpu(ioreq_t *ioreq, void *cookie);
 static ioack_result_t ioack_sync(ioreq_t *ioreq, void *cookie);
 
-static ps_io_ops_t ops;
-
 static inline ioreq_t *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy, int slot)
 {
     if (!ioreq_slot_valid(slot))
@@ -227,23 +225,13 @@ io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka,
                           rpc_callback_t rpc_callback,
                           void *rpc_cookie)
 {
-    io_proxy_t *io_proxy;
-    ps_io_ops_t ops;
+    io_proxy_t *io_proxy = calloc(1, sizeof(*io_proxy));
+    if (!io_proxy) {
+        ZF_LOGE("Failed to allocate memory");
+        return NULL;
+    }
 
     io_proxy->vka = vka;
-
-    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
-    if (err) {
-        ZF_LOGE("Failed to get malloc ops (%d)", err);
-        return NULL;
-    }
-
-    err = ps_calloc(&ops.malloc_ops, 1, sizeof(*io_proxy), (void **)&io_proxy);
-    if (err) {
-        ZF_LOGE("Failed to allocate memory (%d)", err);
-        return NULL;
-    }
-
     io_proxy->ctrl = ctrl;
     io_proxy->iobuf = (struct sel4_iohandler_buffer *)iobuf;
 
