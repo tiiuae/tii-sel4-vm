@@ -333,12 +333,11 @@ static vmm_pci_config_t pci_proxy_make_config(pci_proxy_t *dev)
 
 static pci_proxy_t *pci_proxy_init(vm_t *vm, vmm_pci_space_t *pci)
 {
-    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
-    ZF_LOGF_IF(err, "Failed to get malloc ops");
-
-    pci_proxy_t *dev;
-    err = ps_calloc(&ops.malloc_ops, 1, sizeof(*dev), (void **)&dev);
-    ZF_LOGF_IF(err, "Failed to allocate PCI proxy");
+    pci_proxy_t *dev = calloc(1, sizeof(*dev));
+    if (!dev) {
+        ZF_LOGE("Failed to allocate memory");
+        return NULL;
+    }
 
     vmm_pci_address_t bogus_addr = {
         .bus = 0,
