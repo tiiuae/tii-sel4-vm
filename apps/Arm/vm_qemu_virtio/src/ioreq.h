@@ -12,6 +12,7 @@ typedef uint16_t __u16;
 typedef uint32_t __u32;
 typedef uint64_t __u64;
 
+#include "io_proxy.h"
 #include "sel4-qemu.h"
 #include "sel4_virt_types.h"
 
@@ -25,8 +26,6 @@ typedef enum {
 typedef ioack_result_t (*rpc_callback_t)(rpcmsg_t *, void *);
 
 typedef struct vka vka_t;
-
-typedef struct io_proxy io_proxy_t;
 
 /*********************** VMM-side declarations begin *************************/
 
@@ -45,9 +44,3 @@ io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka,
                           void *rpc_cookie);
 
 /************************ VMM-side declarations end **************************/
-
-/********************** IO-handler declarations begin ************************/
-
-void io_proxy_process(io_proxy_t *io_proxy);
-
-/*********************** IO-handler declarations end *************************/

@@ -13,6 +13,7 @@
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>
 
+#include "io_proxy.h"
 #include "virtio_proxy.h"
 
 #include <virtioarm/virtio_plat.h>
