@@ -51,6 +51,10 @@ static ioack_sync_t *ioack_sync_prepare(vka_t *vka);
 static ioack_result_t ioack_vcpu(ioreq_t *ioreq, void *cookie);
 static ioack_result_t ioack_sync(ioreq_t *ioreq, void *cookie);
 
+static int io_proxy_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
+                           uint32_t addr_space, unsigned int direction,
+                           uintptr_t offset, size_t size, uint64_t val);
+
 static inline ioreq_t *io_proxy_slot_to_ioreq(io_proxy_t *io_proxy, int slot)
 {
     if (!ioreq_slot_valid(slot))
@@ -214,7 +218,7 @@ static ioack_result_t ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
         return IOACK_ERROR;
     }
 
-    ioack_result_t res = ioack->callback(ioack->cookie);
+    ioack_result_t res = ioack->callback(ioreq, ioack->cookie);
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
 
