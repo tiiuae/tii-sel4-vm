@@ -218,14 +218,14 @@ static inline uint32_t pci_proxy_start(pci_proxy_t *dev, vm_vcpu_t *vcpu,
 
     backend_notify();
 
-    uint64_t value;
-    int err = ioreq_wait(io_proxy, slot, &value);
+    uint64_t result;
+    int err = ioreq_wait(io_proxy, slot, &result);
     if (err) {
         ZF_LOGE("ioreq_wait() failed");
         return 0;
     }
 
-    return value;
+    return result;
 }
 
 static inline uint32_t pci_proxy_read(void *cookie, vm_vcpu_t *vcpu, unsigned int offset,
