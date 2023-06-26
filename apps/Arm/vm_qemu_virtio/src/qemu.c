@@ -9,23 +9,16 @@
 #include <sync/sem.h>
 #include <sel4vm/guest_vm.h>
 #include <sel4vm/guest_vcpu_fault.h>
-#include <sel4vm/guest_ram.h>
-#include <sel4vm/guest_memory.h>
-#include <sel4vm/guest_irq_controller.h>
 
-#include <sel4vmmplatsupport/drivers/cross_vm_connection.h>
-#include <sel4vmmplatsupport/drivers/pci_helper.h>
-#include <pci/helper.h>
+
+#include <sel4vm/guest_irq_controller.h>
 
 #include "sel4-qemu.h"
 #include "trace.h"
 #include "ioreq.h"
 #include "pci_intx.h"
 #include "virtio_proxy.h"
-
-/********************* main type definitions begin here *********************/
-
-typedef struct pci_proxy pci_proxy_t;
+#include "pci_proxy.h"
 
 typedef struct virtio_proxy {
     intx_t *intx;
@@ -39,88 +32,68 @@ typedef struct virtio_proxy {
     vm_t *vm;
 } virtio_proxy_t;
 
-/********************** main type definitions end here **********************/
-
-/****************** PCI proxy type definitions begin here *******************/
-
-typedef struct pci_proxy {
-    unsigned int idx;
-    struct virtio_proxy *parent;
-} pci_proxy_t;
-
-/******************* PCI proxy type definitions end here ********************/
-
-/************************* main externs begin here **************************/
-
-/* TODO: framework_init() must call io_proxy_set_queues(), is there better
- * way?
- */
-extern int (*framework_init)(io_proxy_t *);
-extern void (*backend_notify)(void);
-
-extern void *framework_get_ctrl_shm(const virtio_proxy_config_t *config);
-extern void *framework_get_iobuf_shm(const virtio_proxy_config_t *config);
-
-/************************** main externs end here ***************************/
-
-/*********************** main declarations begin here ***********************/
-
-/************************ main declarations end here ************************/
-
-/******************** MMIO proxy declarations begin here ********************/
-
-static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
-                                                uintptr_t paddr, size_t len,
-                                                void *cookie);
-
-/********************* MMIO proxy declarations end here *********************/
-
-/******************** PCI proxy declarations begin here *********************/
-
-static pci_proxy_t *pci_proxy_init(virtio_proxy_t *virtio_proxy);
-
-/********************* PCI proxy declarations end here **********************/
-
-/************************** main code begins here ***************************/
-
-static void register_pci_device(virtio_proxy_t *proxy)
+static int register_pci_device(virtio_proxy_t *proxy)
 {
     ZF_LOGI("Registering PCI device");
 
-    pci_proxy_t *pci_proxy = pci_proxy_init(proxy);
+    unsigned int idx = proxy->pci_dev_count;
+
+    pci_proxy_t *pci_proxy = pci_proxy_init(proxy->io_proxy, proxy->pci, idx);
     if (!pci_proxy) {
-        ZF_LOGF("Failed to initialize PCI proxy");
+        ZF_LOGE("Failed to initialize PCI proxy");
+        return -1;
     }
 
-    unsigned int idx = proxy->pci_dev_count++;
     proxy->pci_devs[idx] = pci_proxy;
-    proxy->pci_devs[idx]->idx = idx;
+    proxy->pci_dev_count++;
+
+    return 0;
 }
 
-static ioack_result_t handle_async(rpcmsg_t *msg, void *cookie)
+static int handle_intx(rpcmsg_t *msg, void *cookie)
+{
+    rpcmsg_union_t *u = (rpcmsg_union_t *)msg;
+    virtio_proxy_t *proxy = cookie;
+
+    switch (QEMU_OP(msg->mr0)) {
+    case QEMU_OP_SET_IRQ:
+        intx_change_level(proxy->intx, u->intx.int_source, true);
+        break;
+    case QEMU_OP_CLR_IRQ:
+        intx_change_level(proxy->intx, u->intx.int_source, false);
+        break;
+    default:
+        /* not handled in this callback */
+        return 0;
+    }
+
+    return 1;
+}	
+
+static int handle_async(rpcmsg_t *msg, void *cookie)
 {
     virtio_proxy_t *proxy = cookie;
 
-    switch (QEMU_OP(msg->mr.mr0)) {
-    case QEMU_OP_SET_IRQ:
-        intx_change_level(proxy->intx, msg->intx.int_source, true);
-        break;
-    case QEMU_OP_CLR_IRQ:
-        intx_change_level(proxy->intx, msg->intx.int_source, false);
-        break;
+    int err;
+
+    switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_START_VM: {
         proxy->ok_to_run = 1;
         sync_sem_post(&proxy->backend_started);
         break;
     }
     case QEMU_OP_REGISTER_PCI_DEV:
-        register_pci_device(proxy);
+        err = register_pci_device(proxy);
+        if (err) {
+            return -1;
+        }
         break;
     default:
-        return IOACK_ERROR;
+        /* not handled in this callback */
+        return 0;
     }
 
-    return IOACK_OK;
+    return 1;
 }
 
 static void wait_for_backend(virtio_proxy_t *proxy)
@@ -137,51 +110,41 @@ static void wait_for_backend(virtio_proxy_t *proxy)
     } while (!(volatile int)proxy->ok_to_run);
 }
 
-virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
-                                  vka_t *vka,
-                                  const virtio_proxy_config_t *config)
+int virtio_proxy_init(virtio_proxy_t *virtio_proxy, vm_t *vm,
+                      vmm_pci_space_t *pci, vka_t *vka, rpc_t *rpc,
+                      io_proxy_t *io_proxy,
+                      const virtio_proxy_config_t *config)
 {
-    vm_memory_reservation_t *reservation;
+    virtio_proxy->config = config;
+    virtio_proxy->vm = vm;
+    virtio_proxy->pci = pci;
 
-    virtio_proxy_t *proxy = calloc(1, sizeof(*proxy));
-    if (!proxy) {
-        ZF_LOGE("Failed to allocate memory");
-        return NULL;
-    }
+    virtio_proxy->io_proxy = io_proxy;
 
-    proxy->config = config;
-    proxy->vm = vm;
-    proxy->pci = pci;
-
-    proxy->intx = intx_init(proxy->vm->vcpus[config->vcpu_id], config->irq);
-    if (!proxy->intx) {
+    virtio_proxy->intx = intx_init(vm->vcpus[config->vcpu_id], config->irq);
+    if (!virtio_proxy->intx) {
         ZF_LOGE("intx_init() failed");
-        return NULL;
+        return -1;
     }
 
-    void *shm_ctrl = framework_get_ctrl_shm(proxy->config);
-    void *shm_iobuf = framework_get_iobuf_shm(proxy->config);
-
-    proxy->io_proxy = io_proxy_init(shm_ctrl, shm_iobuf, vka, handle_async, proxy);
-    if (!proxy->io_proxy) {
-        ZF_LOGE("io_proxy_init() failed");
-        return NULL;
-    }
-
-    reservation = vm_reserve_memory_at(proxy->vm, config->pci_mmio_base,
-                                       config->pci_mmio_size,
-                                       mmio_fault_handler, proxy->io_proxy);
-    if (!reservation) {
-        ZF_LOGE("Cannot reserve PCI MMIO region");
-        return NULL;
-    }
-
-    int err = framework_init(proxy->io_proxy);
+    int err = rpc_register_callback(rpc, handle_async, virtio_proxy); 
     if (err) {
-        ZF_LOGE("framework_init() failed (%d)", err);
-        return NULL;
+        ZF_LOGE("Cannot register RPC callback");
+        return -1;
     }
 
+    err = rpc_register_callback(rpc, handle_intx, virtio_proxy); 
+    if (err) {
+        ZF_LOGE("Cannot register RPC callback");
+        return -1;
+    }
+
+    err = mmio_proxy_create(io_proxy, vm, config->pci_mmio_base,
+                            config->pci_mmio_size);
+    if (err) {
+        ZF_LOGE("Cannot create PCI config space MMIO virtio_proxy");
+        return -1;
+    }
 
     /* fdt_generate_vpci_node() uses PCI emulation callbacks to determine IRQ
      * line and pin, hence it would block unless backend happens to be running
@@ -189,170 +152,31 @@ virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
      * (virtio-specific patched status words and timeouts in proxied MMIO in
      * general).
      */
-    if (sync_sem_new(vka, &proxy->backend_started, 0)) {
+    if (sync_sem_new(vka, &virtio_proxy->backend_started, 0)) {
         ZF_LOGE("Unable to allocate backend_started semaphore");
-        return NULL;
+        return -1;
     }
 
     ZF_LOGI("waiting for virtio backend");
-    wait_for_backend(proxy);
+    wait_for_backend(virtio_proxy);
     ZF_LOGI("virtio backend up, continuing");
 
-    return proxy;
+    return 0;
 }
 
-/*************************** main code ends here ****************************/
-
-/************************ PCI proxy code begins here ************************/
-
-#define VCPU_NONE NULL
-
-static inline uint32_t pci_proxy_start(pci_proxy_t *dev, vm_vcpu_t *vcpu,
-                                       unsigned int dir, uintptr_t offset,
-                                       size_t size, uint32_t value)
+virtio_proxy_t *virtio_proxy_new(vm_t *vm, vmm_pci_space_t *pci, vka_t *vka,
+                                 rpc_t *rpc, io_proxy_t *io_proxy,
+                                 const virtio_proxy_config_t *config)
 {
-    io_proxy_t *io_proxy = dev->parent->io_proxy;
+    virtio_proxy_t *virtio_proxy = calloc(1, sizeof(*virtio_proxy));
 
-    int slot = ioreq_pci_start(io_proxy, vcpu, dev->idx, dir, offset, size, value);
-    assert(ioreq_slot_valid(slot));
-
-    backend_notify();
-
-    uint64_t result;
-    int err = ioreq_wait(io_proxy, slot, &result);
-    if (err) {
-        ZF_LOGE("ioreq_wait() failed");
-        return 0;
+    if (virtio_proxy) {
+        int err = virtio_proxy_init(virtio_proxy, vm, pci, vka, rpc, io_proxy,
+                                    config);
+        if (err) {
+            return NULL;
+        }
     }
 
-    return result;
+    return virtio_proxy;
 }
-
-static inline uint32_t pci_proxy_read(void *cookie, vm_vcpu_t *vcpu, unsigned int offset,
-                                      size_t size)
-{
-    pci_proxy_t *dev = cookie;
-
-    return pci_proxy_start(dev, vcpu, SEL4_IO_DIR_READ, offset, size, 0);
-}
-
-static inline void pci_proxy_write(void *cookie, vm_vcpu_t *vcpu, unsigned int offset,
-                                   size_t size, uint32_t value)
-{
-    pci_proxy_t *dev = cookie;
-
-    pci_proxy_start(dev, vcpu, SEL4_IO_DIR_WRITE, offset, size, value);
-}
-
-static uint8_t pci_proxy_read8(void *cookie, vmm_pci_address_t addr,
-                               unsigned int offset)
-{
-    pci_proxy_t *proxy = cookie;
-
-    if (offset == 0x3c) {
-        return proxy->parent->config->irq;
-    }
-    return pci_proxy_read(cookie, VCPU_NONE, offset, 1);
-}
-
-static uint16_t pci_proxy_read16(void *cookie, vmm_pci_address_t addr,
-                                 unsigned int offset)
-{
-    return pci_proxy_read(cookie, VCPU_NONE, offset, 2);
-}
-
-static uint32_t pci_proxy_read32(void *cookie, vmm_pci_address_t addr,
-                                 unsigned int offset)
-{
-    return pci_proxy_read(cookie, VCPU_NONE, offset, 4);
-}
-
-static void pci_proxy_write8(void *cookie, vmm_pci_address_t addr,
-                             unsigned int offset, uint8_t val)
-{
-    pci_proxy_write(cookie, VCPU_NONE, offset, 1, val);
-}
-
-static void pci_proxy_write16(void *cookie, vmm_pci_address_t addr,
-                              unsigned int offset, uint16_t val)
-{
-    pci_proxy_write(cookie, VCPU_NONE, offset, 2, val);
-}
-
-static void pci_proxy_write32(void *cookie, vmm_pci_address_t addr,
-                              unsigned int offset, uint32_t val)
-{
-    pci_proxy_write(cookie, VCPU_NONE, offset, 4, val);
-}
-
-static vmm_pci_config_t pci_proxy_make_config(pci_proxy_t *dev)
-{
-    return (vmm_pci_config_t) {
-        .cookie = dev,
-        .ioread8 = pci_proxy_read8,
-        .ioread16 = pci_proxy_read16,
-        .ioread32 = pci_proxy_read32,
-        .iowrite8 = pci_proxy_write8,
-        .iowrite16 = pci_proxy_write16,
-        .iowrite32 = pci_proxy_write32,
-    };
-}
-
-static pci_proxy_t *pci_proxy_init(virtio_proxy_t *virtio_proxy)
-{
-    pci_proxy_t *dev = calloc(1, sizeof(*dev));
-    if (!dev) {
-        ZF_LOGE("Failed to allocate memory");
-        return NULL;
-    }
-
-    dev->parent = virtio_proxy;
-
-    vmm_pci_address_t bogus_addr = {
-        .bus = 0,
-        .dev = 0,
-        .fun = 0,
-    };
-    vmm_pci_entry_t entry = vmm_pci_create_passthrough(bogus_addr,
-                                                       pci_proxy_make_config(dev));
-    vmm_pci_add_entry(virtio_proxy->pci, entry, NULL);
-
-    return dev;
-}
-
-/************************* PCI proxy code ends here *************************/
-
-/************************ MMIO proxy code begins here ************************/
-
-static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
-                                                uintptr_t paddr, size_t len,
-                                                void *cookie)
-{
-    io_proxy_t *io_proxy = cookie;
-    uint32_t value;
-    uint32_t direction;
-    int err;
-
-    if (is_vcpu_read_fault(vcpu)) {
-        value = 0;
-        direction = SEL4_IO_DIR_READ;
-    } else {
-        seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-        uint32_t mask = get_vcpu_fault_data_mask(vcpu) >> s;
-        value = get_vcpu_fault_data(vcpu) & mask;
-        direction = SEL4_IO_DIR_WRITE;
-    }
-
-    err = ioreq_mmio_start(io_proxy, vcpu, direction, paddr, len, value);
-    if (err < 0) {
-        ZF_LOGE("Failure starting MMIO request");
-        return FAULT_ERROR;
-    }
-
-    backend_notify();
-
-    /* Let's not advance the fault here -- the reply from backend does that */
-    return FAULT_HANDLED;
-}
-
-/************************* MMIO proxy code ends here *************************/

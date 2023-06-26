@@ -6,6 +6,8 @@
 
 #pragma once
 
+typedef struct vmm_pci_space vmm_pci_space_t;
+
 typedef struct virtio_proxy_config {
     unsigned int vcpu_id;
     unsigned int irq;
@@ -15,8 +17,11 @@ typedef struct virtio_proxy_config {
 
 typedef struct virtio_proxy virtio_proxy_t;
 
-virtio_proxy_t *virtio_proxy_init(vm_t *vm, vmm_pci_space_t *pci,
-                                  vka_t *vka,
-                                  const virtio_proxy_config_t *config);
+int virtio_proxy_init(virtio_proxy_t *virtio_proxy, vm_t *vm,
+                      vmm_pci_space_t *pci, vka_t *vka, rpc_t *rpc,
+                      io_proxy_t *io_proxy,
+                      const virtio_proxy_config_t *config);
 
-void rpc_handler(virtio_proxy_t *proxy);
+virtio_proxy_t *virtio_proxy_new(vm_t *vm, vmm_pci_space_t *pci, vka_t *vka,
+                                 rpc_t *rpc, io_proxy_t *io_proxy,
+                                 const virtio_proxy_config_t *config);

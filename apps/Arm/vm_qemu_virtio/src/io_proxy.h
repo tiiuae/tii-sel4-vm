@@ -6,10 +6,12 @@
 
 #pragma once
 
+#include "rpc.h"
+
 typedef struct io_proxy io_proxy_t;
 
-/********************** IO-handler declarations begin ************************/
+int io_proxy_init(io_proxy_t *io_proxy, void *iobuf, vka_t *vka, rpc_t *rpc);
+io_proxy_t *io_proxy_new(void *iobuf, vka_t *vka, rpc_t *rpc);
 
-void io_proxy_process(io_proxy_t *io_proxy);
-
-/*********************** IO-handler declarations end *************************/
+int mmio_proxy_create(io_proxy_t *io_proxy, vm_t *vm, uintptr_t base,
+                      size_t size);

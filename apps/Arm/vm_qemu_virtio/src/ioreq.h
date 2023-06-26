@@ -13,6 +13,7 @@ typedef uint32_t __u32;
 typedef uint64_t __u64;
 
 #include "io_proxy.h"
+#include "rpc.h"
 #include "sel4-qemu.h"
 #include "sel4_virt_types.h"
 
@@ -38,9 +39,5 @@ int ioreq_pci_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
                     uintptr_t offset, size_t size, uint32_t value);
 
 int ioreq_wait(io_proxy_t *io_proxy, int slot, uint64_t *value);
-
-io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka,
-                          rpc_callback_t rpc_callback,
-                          void *rpc_cookie);
 
 /************************ VMM-side declarations end **************************/

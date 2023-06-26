@@ -33,6 +33,7 @@ DeclareCAmkESComponent(
     src/pl011.c
     src/qemu.c
     src/ioreq.c
+    src/rpc.c
     LIBS
     tii_camkes_vm
     tii_camkes_vm_Config

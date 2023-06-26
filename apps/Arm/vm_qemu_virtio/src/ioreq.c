@@ -6,9 +6,12 @@
 
 #include <sync/sem.h>
 
+#include <sel4vm/guest_memory.h>
 #include <sel4vm/guest_vcpu_fault.h>
+#include <sel4vm/guest_ram.h>
 
 #include "ioreq.h"
+#include "io_proxy.h"
 
 #define ADDR_SPACE_GLOBAL               ~0
 #define ADDR_SPACE_PCI_CFG(__pcidev)    (__pcidev)
@@ -36,13 +39,10 @@ typedef struct {
 } ioack_sync_t;
 
 typedef struct io_proxy {
-    void *ctrl;
     ioack_t ioacks[SEL4_MAX_IOREQS];
     struct sel4_iohandler_buffer *iobuf;
-    rpcmsg_queue_t *rx_queue;
     vka_t *vka;
-    rpc_callback_t rpc_callback;
-    void *rpc_cookie;
+    rpc_t *rpc;
 } io_proxy_t;
 
 static __thread ioack_sync_t *ioack_sync_data = NULL;
@@ -50,6 +50,8 @@ static __thread ioack_sync_t *ioack_sync_data = NULL;
 static ioack_sync_t *ioack_sync_prepare(vka_t *vka);
 static ioack_result_t ioack_vcpu(ioreq_t *ioreq, void *cookie);
 static ioack_result_t ioack_sync(ioreq_t *ioreq, void *cookie);
+
+static int io_proxy_rpc_callback(rpcmsg_t *msg, void *cookie);
 
 static int io_proxy_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu,
                            uint32_t addr_space, unsigned int direction,
@@ -225,31 +227,38 @@ static ioack_result_t ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
     return res;
 }
 
-io_proxy_t *io_proxy_init(void *ctrl, void *iobuf, vka_t *vka,
-                          rpc_callback_t rpc_callback,
-                          void *rpc_cookie)
+int io_proxy_init(io_proxy_t *io_proxy, void *iobuf, vka_t *vka, rpc_t *rpc)
 {
-    io_proxy_t *io_proxy = calloc(1, sizeof(*io_proxy));
-    if (!io_proxy) {
-        ZF_LOGE("Failed to allocate memory");
-        return NULL;
-    }
-
     io_proxy->vka = vka;
-    io_proxy->ctrl = ctrl;
     io_proxy->iobuf = (struct sel4_iohandler_buffer *)iobuf;
+    io_proxy->rpc = rpc;
 
     for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
         ioreq_set_state(io_proxy_slot_to_ioreq(io_proxy, i),
                         SEL4_IOREQ_STATE_FREE);
     }
 
-    io_proxy->rpc_callback = rpc_callback;
-    io_proxy->rpc_cookie = rpc_cookie;
-
-    io_proxy->rx_queue = (((rpcmsg_queue_t *) io_proxy->ctrl) + 1);
+    int err = rpc_register_callback(rpc, io_proxy_rpc_callback, io_proxy);
+    if (err) {
+        ZF_LOGE("Cannot register RPC callback");
+        return -1;
+    }
 
     mb();
+
+    return 0;
+}
+
+io_proxy_t *io_proxy_new(void *iobuf, vka_t *vka, rpc_t *rpc)
+{
+    io_proxy_t *io_proxy = calloc(1, sizeof(*io_proxy));
+
+    if (io_proxy) {
+        int err = io_proxy_init(io_proxy, iobuf, vka, rpc);
+        if (err) {
+            return NULL;
+        }
+    }
 
     return io_proxy;
 }
@@ -287,28 +296,72 @@ static ioack_result_t ioack_sync(ioreq_t *ioreq, void *cookie)
     return IOACK_OK;
 }
 
-void io_proxy_process(io_proxy_t *io_proxy)
+static int io_proxy_rpc_callback(rpcmsg_t *msg, void *cookie)
 {
-    rpcmsg_queue_t *q = io_proxy->rx_queue;
+    io_proxy_t *io_proxy = cookie;
 
-    for (;;) {
-        rpcmsg_t *msg = rpcmsg_queue_head(q);
-        if (!msg) {
-            break;
-        }
-
-        ioack_result_t result;
-        if (QEMU_OP(msg->mr.mr0) == QEMU_OP_IO_HANDLED) {
-            result = ioreq_finish(io_proxy, msg->mr.mr1);
-        } else {
-            result = io_proxy->rpc_callback(msg, io_proxy->rpc_cookie);
-        }
-
-        if (result == IOACK_ERROR) {
-            ZF_LOGF("IO acknowledge error, no point continuing");
-            /* no return */
-        }
-
-        rpcmsg_queue_advance_head(q);
+    ioack_result_t result;
+    if (QEMU_OP(msg->mr0) == QEMU_OP_IO_HANDLED) {
+        result = ioreq_finish(io_proxy, msg->mr1);
+    } else {
+        /* not handled in this callback */
+        return 0;
     }
+
+    if (result == IOACK_ERROR) {
+        ZF_LOGE("IO acknowledge error, no point continuing");
+        return -1;
+    }
+
+    return 1;
 }
+
+/************************ MMIO proxy code begins here ************************/
+
+static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
+                                                uintptr_t paddr, size_t len,
+                                                void *cookie)
+{
+    io_proxy_t *io_proxy = cookie;
+    uint32_t value;
+    uint32_t direction;
+    int err;
+
+    if (is_vcpu_read_fault(vcpu)) {
+        value = 0;
+        direction = SEL4_IO_DIR_READ;
+    } else {
+        seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
+        uint32_t mask = get_vcpu_fault_data_mask(vcpu) >> s;
+        value = get_vcpu_fault_data(vcpu) & mask;
+        direction = SEL4_IO_DIR_WRITE;
+    }
+
+    err = ioreq_mmio_start(io_proxy, vcpu, direction, paddr, len, value);
+    if (err < 0) {
+        ZF_LOGE("Failure starting MMIO request");
+        return FAULT_ERROR;
+    }
+
+    rpc_notify(io_proxy->rpc);
+
+    /* Let's not advance the fault here -- the reply from backend does that */
+    return FAULT_HANDLED;
+}
+
+int mmio_proxy_create(io_proxy_t *io_proxy, vm_t *vm,
+                      uintptr_t base, size_t size)
+{
+    vm_memory_reservation_t *reservation;
+
+    reservation = vm_reserve_memory_at(vm, base, size, mmio_fault_handler,
+                                       io_proxy);
+    if (!reservation) {
+        ZF_LOGE("Cannot reserve address range");
+        return -1;
+    }
+    
+    return 0;
+}
+
+/************************* MMIO proxy code ends here *************************/
