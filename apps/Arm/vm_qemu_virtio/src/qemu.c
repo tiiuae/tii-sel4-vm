@@ -41,7 +41,6 @@ int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
 
 volatile int ok_to_run = 0;
 
-static sync_sem_t handoff;
 static sync_sem_t backend_started;
 
 extern vka_t _vka;
@@ -64,9 +63,8 @@ static shared_irq_line_t irq_line;
 
 static void user_pre_load_linux(void)
 {
-    if (sync_sem_new(&_vka, &handoff, 0)) {
-        ZF_LOGF("Unable to allocate handoff semaphore");
-    }
+    ioreq_init(iobuf);
+
     if (sync_sem_new(&_vka, &backend_started, 0)) {
         ZF_LOGF("Unable to allocate handoff semaphore");
     }
@@ -188,7 +186,6 @@ static bool handle_async(rpcmsg_t *msg)
             return false;
         break;
     case QEMU_OP_START_VM: {
-        ioreq_init(iobuf);
         ok_to_run = 1;
         sync_sem_post(&backend_started);
         break;
@@ -200,18 +197,20 @@ static bool handle_async(rpcmsg_t *msg)
     return true;
 }
 
-static rpcmsg_t *peek_sync_msg(rpcmsg_queue_t *q)
+static int rpc_run(rpcmsg_queue_t *q)
 {
-    for (;;) {
+    while (!rpcmsg_queue_empty(q)) {
         rpcmsg_t *msg = rpcmsg_queue_head(q);
         if (!msg) {
-            return NULL;
+            return -1;
         }
         if (!handle_async(msg)) {
-            return msg;
+            return -1;
         }
         rpcmsg_queue_advance_head(q);
     }
+
+    return 0;
 }
 
 static void intervm_callback(void *opaque)
@@ -219,9 +218,10 @@ static void intervm_callback(void *opaque)
     int err = intervm_sink_reg_callback(intervm_callback, opaque);
     assert(!err);
 
-    rpcmsg_t *msg = peek_sync_msg(rx_queue);
-    if (msg) {
-        sync_sem_post(&handoff);
+    err = rpc_run(rx_queue);
+    if (err) {
+        ZF_LOGF("rpc_run() failed, guest corrupt");
+        /* no return */
     }
 }
 
@@ -255,10 +255,8 @@ static inline uint32_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
     assert(ioreq_slot_valid(slot));
 
     backend_notify();
-    sync_sem_wait(&handoff);
 
     value = ioreq_pci_finish(iobuf, slot);
-    rpcmsg_queue_advance_head(rx_queue);
 
     return value;
 }

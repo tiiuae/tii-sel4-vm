@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <sync/sem.h>
+
 #include <sel4vm/guest_vcpu_fault.h>
 
 #include "ioreq.h"
@@ -25,6 +27,9 @@
 #define ioreq_is_mmio(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_MMIO)
 #define ioreq_is_pci(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_PCI)
 
+static sync_sem_t handoff;
+
+extern vka_t _vka;
 
 static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
                                                    int slot)
@@ -91,9 +96,13 @@ int ioreq_mmio_finish(vm_t *vm,
     ioreq = ioreq_slot_to_ptr(iobuf, slot);
     assert(ioreq);
 
-    /* io request not for us, or not complete */
-    if (!ioreq_is_mmio(ioreq) || !ioreq_state_complete(ioreq)) {
+    if (!ioreq_state_complete(ioreq)) {
         return -1;
+    }
+
+    if (!ioreq_is_mmio(ioreq)) {
+        sync_sem_post(&handoff);
+        return 0;
     }
 
     mmio = ioreq_to_mmio(ioreq);
@@ -154,6 +163,8 @@ uint32_t ioreq_pci_finish(struct sel4_iohandler_buffer *iobuf,
     struct sel4_ioreq *ioreq;
     struct sel4_ioreq_pci *pci;
 
+    sync_sem_wait(&handoff);
+
     assert(iobuf);
 
     ioreq = ioreq_slot_to_ptr(iobuf, slot);
@@ -176,6 +187,10 @@ uint32_t ioreq_pci_finish(struct sel4_iohandler_buffer *iobuf,
 
 void ioreq_init(struct sel4_iohandler_buffer *iobuf)
 {
+    if (sync_sem_new(&_vka, &handoff, 0)) {
+        ZF_LOGF("Unable to allocate handoff semaphore");
+    }
+
     for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
         ioreq_set_state(ioreq_slot_to_ptr(iobuf, i), SEL4_IOREQ_STATE_FREE);
     }
