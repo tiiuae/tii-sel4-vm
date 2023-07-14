@@ -33,6 +33,8 @@
 
 #define VIRTIO_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
 
+typedef int (*rpc_callback_fn_t)(rpcmsg_t *msg);
+
 extern void *ctrl;
 extern void *iobuf;
 
@@ -129,7 +131,7 @@ static int pcidev_intx_set(unsigned int intx, bool level)
     return shared_irq_line_change(&irq_line, intx, level);
 }
 
-static bool handle_pci(rpcmsg_t *msg)
+static int handle_pci(rpcmsg_t *msg)
 {
     int err = 0;
 
@@ -144,41 +146,50 @@ static bool handle_pci(rpcmsg_t *msg)
         err = pcidev_register(vm, pci);
         break;
     default:
-        return false;
+        return 0;
     }
 
     if (err) {
-        ZF_LOGF("fatal error");
-        /* no return */
+        return -1;
     }
 
-    return true;
+    return 1;
 }
 
-static bool handle_async(rpcmsg_t *msg)
+static int handle_mmio(rpcmsg_t *msg)
 {
-    int err;
-
-    if (handle_pci(msg)) {
-        return true;
+    if (QEMU_OP(msg->mr0) != QEMU_OP_IO_HANDLED) {
+        return 0;
     }
 
+    int err = ioreq_finish(iobuf, msg->mr1);
+    if (err) {
+        return -1;
+    }
+
+    return 1;
+}
+
+static int handle_control(rpcmsg_t *msg)
+{
     switch (QEMU_OP(msg->mr0)) {
-    case QEMU_OP_IO_HANDLED:
-        if (ioreq_finish(iobuf, msg->mr1))
-            return false;
-        break;
-    case QEMU_OP_START_VM: {
+    case QEMU_OP_START_VM:
         ok_to_run = 1;
         sync_sem_post(&backend_started);
         break;
-    }
     default:
-        return false;
+        return 0;
     }
 
-    return true;
+    return 1;
 }
+
+static rpc_callback_fn_t rpc_callbacks[] = {
+    handle_mmio,
+    handle_pci,
+    handle_control,
+    NULL,
+};
 
 static int rpc_run(rpcmsg_queue_t *q)
 {
@@ -187,8 +198,15 @@ static int rpc_run(rpcmsg_queue_t *q)
         if (!msg) {
             return -1;
         }
-        if (!handle_async(msg)) {
+        int rc = 0;
+        for (rpc_callback_fn_t *cb = rpc_callbacks; !rc && *cb; cb++) {
+            rc = (*cb)(msg);
+        }
+        if (rc == -1) {
             return -1;
+        }
+        if (rc == 0) {
+            ZF_LOGW("Unknown RPC message %u", QEMU_OP(msg->mr0));
         }
         rpcmsg_queue_advance_head(q);
     }
