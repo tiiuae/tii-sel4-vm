@@ -39,8 +39,9 @@ static ioack_t ioacks[SEL4_MAX_IOREQS];
 
 extern vka_t _vka;
 
-static int ioreq_mmio_finish(struct sel4_ioreq *ioreq, void *cookie);
-static int ioreq_pci_finish(struct sel4_ioreq *ioreq, void *cookie);
+static ioreq_sync_t *ioreq_sync_prepare(void);
+static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie);
+static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie);
 
 static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
                                                    int slot)
@@ -61,14 +62,13 @@ static int ioreq_next_free_slot(struct sel4_iohandler_buffer *iobuf)
     return -1;
 }
 
-int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
-                     vm_vcpu_t *vcpu, unsigned int direction,
-                     uintptr_t offset, size_t size,
-                     uint64_t val)
+int ioreq_start(struct sel4_iohandler_buffer *iobuf, vm_vcpu_t *vcpu,
+                uint32_t addr_space,  unsigned int direction,
+                uintptr_t offset, size_t size, uint64_t val)
 {
     struct sel4_ioreq *ioreq;
 
-    assert(iobuf && vcpu && size >= 0 && size <= sizeof(val));
+    assert(iobuf && size >= 0 && size <= sizeof(val));
 
     int slot = ioreq_next_free_slot(iobuf);
 
@@ -77,7 +77,7 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
         return -1;
 
     ioreq->direction = direction;
-    ioreq->addr_space = AS_GLOBAL;
+    ioreq->addr_space = addr_space;
     ioreq->addr = offset;
     ioreq->len = size;
     if (direction == SEL4_IO_DIR_WRITE) {
@@ -86,8 +86,13 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
         ioreq->data = 0;
     }
 
-    ioacks[slot].callback = ioreq_mmio_finish;
-    ioacks[slot].cookie = vcpu;
+    if (vcpu) {
+        ioacks[slot].callback = ioreq_vcpu_finish;
+        ioacks[slot].cookie = vcpu;
+    } else {
+        ioacks[slot].callback = ioreq_sync_finish;
+        ioacks[slot].cookie = ioreq_sync_prepare();
+    }
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
 
@@ -114,7 +119,7 @@ int ioreq_finish(struct sel4_iohandler_buffer *iobuf, unsigned int slot)
     return err;
 }
 
-static int ioreq_mmio_finish(struct sel4_ioreq *ioreq, void *cookie)
+static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie)
 {
     vm_vcpu_t *vcpu = cookie;
 
@@ -134,29 +139,8 @@ static int ioreq_mmio_finish(struct sel4_ioreq *ioreq, void *cookie)
     return 0;
 }
 
-int ioreq_pci_start(struct sel4_iohandler_buffer *iobuf,
-                    unsigned int pcidev, unsigned int direction,
-                    uintptr_t offset, size_t size,
-                    uint32_t value)
+static ioreq_sync_t *ioreq_sync_prepare(void)
 {
-    assert(iobuf && size >= 0 && size <= sizeof(value));
-
-    int slot = ioreq_next_free_slot(iobuf);
-
-    struct sel4_ioreq *ioreq = ioreq_slot_to_ptr(iobuf, slot);
-    if (!ioreq)
-        return -1;
-
-    ioreq->direction = direction;
-    ioreq->addr_space = AS_PCIDEV(pcidev);
-    ioreq->addr = offset;
-    ioreq->len = size;
-    if (direction == SEL4_IO_DIR_WRITE) {
-        memcpy(&ioreq->data, &value, size);
-    } else {
-        ioreq->data = 0;
-    }
-
     if (!ioreq_sync.initialized) {
         if (sync_sem_new(&_vka, &ioreq_sync.handoff, 0)) {
             ZF_LOGF("Unable to allocate handoff semaphore");
@@ -164,15 +148,10 @@ int ioreq_pci_start(struct sel4_iohandler_buffer *iobuf,
         ioreq_sync.initialized = true;
     }
 
-    ioacks[slot].callback = ioreq_pci_finish;
-    ioacks[slot].cookie = &ioreq_sync;
-
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
-
-    return slot;
+    return &ioreq_sync;
 }
 
-static int ioreq_pci_finish(struct sel4_ioreq *ioreq, void *cookie)
+static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie)
 {
     ioreq_sync_t *sync = cookie;
 

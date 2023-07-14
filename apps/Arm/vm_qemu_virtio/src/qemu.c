@@ -251,7 +251,8 @@ static inline uint64_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
                                       uintptr_t offset, size_t size,
                                       uint64_t value)
 {
-    int slot = ioreq_pci_start(iobuf, qemu->idx, dir, offset, size, value);
+    int slot = ioreq_start(iobuf, VCPU_NONE, AS_PCIDEV(qemu->idx), dir, offset,
+                           size, value);
     assert(ioreq_slot_valid(slot));
 
     backend_notify();
@@ -320,7 +321,7 @@ static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
     int err;
 
-    err = ioreq_mmio_start(iobuf, vcpu, SEL4_IO_DIR_READ, paddr, len, 0);
+    err = ioreq_start(iobuf, vcpu, AS_GLOBAL, SEL4_IO_DIR_READ, paddr, len, 0);
     if (err < 0) {
         ZF_LOGF("Failure starting mmio read request");
     }
@@ -337,7 +338,7 @@ static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len
     mask = get_vcpu_fault_data_mask(vcpu) >> s;
     value = get_vcpu_fault_data(vcpu) & mask;
 
-    err = ioreq_mmio_start(iobuf, vcpu, SEL4_IO_DIR_WRITE, paddr, len, value);
+    err = ioreq_start(iobuf, vcpu, AS_GLOBAL, SEL4_IO_DIR_WRITE, paddr, len, value);
     if (err < 0) {
         ZF_LOGF("Failure starting mmio write request");
     }
