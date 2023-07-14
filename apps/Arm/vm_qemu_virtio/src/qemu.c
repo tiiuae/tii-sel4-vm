@@ -87,53 +87,38 @@ typedef struct pcidev {
 } pcidev_t;
 
 extern vmm_pci_space_t *pci;
-extern vmm_io_port_list_t *io_ports;
 
-static ps_io_ops_t ops;
+static pcidev_t *pci_devs[16];
+static unsigned int pci_dev_count;
 
-static vmm_pci_entry_t vmm_pcidev_bar(pcidev_t *pcidev)
+static int pcidev_register(vm_t *vm, vmm_pci_space_t *pci)
 {
+    pcidev_t *pcidev = calloc(1, sizeof(*pcidev));
+    if (!pcidev) {
+        ZF_LOGE("Failed to allocate memory");
+        return -1;
+    }
+
     vmm_pci_address_t bogus_addr = {
         .bus = 0,
         .dev = 0,
         .fun = 0,
     };
-    return vmm_pci_create_passthrough(bogus_addr, make_pcidev_config(pcidev));
-}
 
-pcidev_t *pcidev_init(vm_t *vm, vmm_pci_space_t *pci)
-{
-    int err = ps_new_stdlib_malloc_ops(&ops.malloc_ops);
-    ZF_LOGF_IF(err, "Failed to get malloc ops");
-
-    pcidev_t *pcidev;
-    err = ps_calloc(&ops.malloc_ops, 1, sizeof(*pcidev), (void **)&pcidev);
-    ZF_LOGF_IF(err, "Failed to allocate virtio pcidev");
-
-    vmm_pci_entry_t entry = vmm_pcidev_bar(pcidev);
+    vmm_pci_entry_t entry = vmm_pci_create_passthrough(bogus_addr,
+                                                       make_pcidev_config(pcidev));
     vmm_pci_add_entry(pci, entry, NULL);
 
-    return pcidev;
+    pcidev->idx = pci_dev_count;
+
+    ZF_LOGI("Registering PCI device %u", pcidev->idx);
+
+    pci_devs[pci_dev_count++] = pcidev;
+
+    return 0;
 }
 
-static pcidev_t *pci_devs[16];
-static unsigned int pci_dev_count;
-
-static void register_pcidev(void)
-{
-    ZF_LOGI("Registering PCI device");
-
-    pcidev_t *pcidev = pcidev_init(vm, pci);
-    if (!pcidev) {
-        ZF_LOGF("pcidev_init() failed");
-    }
-
-    pci_devs[pci_dev_count] = pcidev;
-    pci_devs[pci_dev_count]->idx = pci_dev_count;
-    pci_dev_count++;
-}
-
-static int pci_intx_set(unsigned int intx, bool level)
+static int pcidev_intx_set(unsigned int intx, bool level)
 {
     /* #INTA ... #INTD */
     if (intx >= 4) {
@@ -150,13 +135,13 @@ static bool handle_pci(rpcmsg_t *msg)
 
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_SET_IRQ:
-        err = pci_intx_set(msg->mr1, true);
+        err = pcidev_intx_set(msg->mr1, true);
         break;
     case QEMU_OP_CLR_IRQ:
-        err = pci_intx_set(msg->mr1, false);
+        err = pcidev_intx_set(msg->mr1, false);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
-        register_pcidev();
+        err = pcidev_register(vm, pci);
         break;
     default:
         return false;
