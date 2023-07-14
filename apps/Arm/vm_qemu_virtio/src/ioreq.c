@@ -23,10 +23,6 @@
 #define ioreq_state_complete(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_COMPLETE)
 #define ioreq_state_free(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_FREE)
 
-#define ioreq_is_type(_ioreq, _type) ((_ioreq)->type == (_type))
-#define ioreq_is_mmio(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_MMIO)
-#define ioreq_is_pci(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_PCI)
-
 typedef struct ioack {
     int (*callback)(struct sel4_ioreq *ioreq, void *cookie);
     void *cookie;
@@ -71,7 +67,6 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
                      uint64_t val)
 {
     struct sel4_ioreq *ioreq;
-    struct sel4_ioreq_mmio *mmio;
 
     assert(iobuf && vcpu && size >= 0 && size <= sizeof(val));
 
@@ -81,18 +76,15 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
     if (!ioreq)
         return -1;
 
-    mmio = ioreq_to_mmio(ioreq);
-    mmio->direction = direction;
-    mmio->vcpu = vcpu->vcpu_id;
-    mmio->addr = offset;
-    mmio->len = size;
+    ioreq->direction = direction;
+    ioreq->addr_space = AS_GLOBAL;
+    ioreq->addr = offset;
+    ioreq->len = size;
     if (direction == SEL4_IO_DIR_WRITE) {
-        memcpy(&mmio->data, &val, size);
+        memcpy(&ioreq->data, &val, size);
     } else {
-        mmio->data = 0;
+        ioreq->data = 0;
     }
-
-    ioreq->type = SEL4_IOREQ_TYPE_MMIO;
 
     ioacks[slot].callback = ioreq_mmio_finish;
     ioacks[slot].cookie = vcpu;
@@ -105,7 +97,6 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
 int ioreq_finish(struct sel4_iohandler_buffer *iobuf, unsigned int slot)
 {
     struct sel4_ioreq *ioreq;
-    struct sel4_ioreq_mmio *mmio;
 
     assert(iobuf);
 
@@ -127,14 +118,12 @@ static int ioreq_mmio_finish(struct sel4_ioreq *ioreq, void *cookie)
 {
     vm_vcpu_t *vcpu = cookie;
 
-    struct sel4_ioreq_mmio *mmio = ioreq_to_mmio(ioreq);
-
-    if (mmio->direction == SEL4_IO_DIR_READ) {
+    if (ioreq->direction == SEL4_IO_DIR_READ) {
         seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
         seL4_Word data = 0;
 
-        assert(mmio->len <= sizeof(data));
-        memcpy(&data, &mmio->data, mmio->len);
+        assert(ioreq->len <= sizeof(data));
+        memcpy(&data, &ioreq->data, ioreq->len);
 
         set_vcpu_fault_data(vcpu, data << s);
         advance_vcpu_fault(vcpu);
@@ -158,18 +147,15 @@ int ioreq_pci_start(struct sel4_iohandler_buffer *iobuf,
     if (!ioreq)
         return -1;
 
-    struct sel4_ioreq_pci *pci = ioreq_to_pci(ioreq);
-    pci->direction = direction;
-    pci->pcidev = pcidev;
-    pci->addr = offset;
-    pci->len = size;
+    ioreq->direction = direction;
+    ioreq->addr_space = AS_PCIDEV(pcidev);
+    ioreq->addr = offset;
+    ioreq->len = size;
     if (direction == SEL4_IO_DIR_WRITE) {
-        memcpy(&pci->data, &value, size);
+        memcpy(&ioreq->data, &value, size);
     } else {
-        pci->data = 0;
+        ioreq->data = 0;
     }
-
-    ioreq->type = SEL4_IOREQ_TYPE_PCI;
 
     if (!ioreq_sync.initialized) {
         if (sync_sem_new(&_vka, &ioreq_sync.handoff, 0)) {
@@ -191,12 +177,9 @@ static int ioreq_pci_finish(struct sel4_ioreq *ioreq, void *cookie)
     ioreq_sync_t *sync = cookie;
 
     uint32_t data = 0;
-    struct sel4_ioreq_pci *pci;
 
-    pci = ioreq_to_pci(ioreq);
-
-    if (pci->direction == SEL4_IO_DIR_READ) {
-        memcpy(&data, &pci->data, pci->len);
+    if (ioreq->direction == SEL4_IO_DIR_READ) {
+        memcpy(&data, &ioreq->data, ioreq->len);
         sync->value = data;
     }
 
