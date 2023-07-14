@@ -35,7 +35,6 @@
 
 typedef int (*rpc_callback_fn_t)(rpcmsg_t *msg);
 
-extern void *ctrl;
 extern void *iobuf;
 
 /* VM0 does not have these */
@@ -373,8 +372,9 @@ static void qemu_init(vm_t *_vm, void *cookie)
     vm = _vm;
 
     if (vmid != 0) {
-        vm0_io_proxy.iobuf = iobuf;
+        vm0_io_proxy.iobuf = mmio_reqs(iobuf);
         vm0_io_proxy.backend_notify = vm0_backend_notify;
+        vm0_io_proxy.rx_queue = rx_queue(iobuf);
 
         io_proxy_init(&vm0_io_proxy);
 
