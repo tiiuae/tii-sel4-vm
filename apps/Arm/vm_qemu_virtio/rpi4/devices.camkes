@@ -49,7 +49,6 @@ assembly {
          * Linux kernel remaps the PCI devices. seL4's vPCI does not
          * support that and everything would break.
          */
-        vm_ctrl.size = VM1_RAM_SIZE;
         vm_iobuf.size = VM1_RAM_SIZE;
 
         vm0.vm_address_config = {
