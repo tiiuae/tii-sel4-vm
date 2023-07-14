@@ -27,9 +27,24 @@
 #define ioreq_is_mmio(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_MMIO)
 #define ioreq_is_pci(_ioreq) ioreq_is_type((_ioreq), SEL4_IOREQ_TYPE_PCI)
 
-static sync_sem_t handoff;
+typedef struct ioack {
+    int (*callback)(struct sel4_ioreq *ioreq, void *cookie);
+    void *cookie;
+} ioack_t;
+
+typedef struct ioreq_sync {
+    bool initialized;
+    sync_sem_t handoff;
+    uint64_t value;
+} ioreq_sync_t;
+
+static __thread ioreq_sync_t ioreq_sync;
+static ioack_t ioacks[SEL4_MAX_IOREQS];
 
 extern vka_t _vka;
+
+static int ioreq_mmio_finish(struct sel4_ioreq *ioreq, void *cookie);
+static int ioreq_pci_finish(struct sel4_ioreq *ioreq, void *cookie);
 
 static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
                                                    int slot)
@@ -79,14 +94,15 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
 
     ioreq->type = SEL4_IOREQ_TYPE_MMIO;
 
+    ioacks[slot].callback = ioreq_mmio_finish;
+    ioacks[slot].cookie = vcpu;
+
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
 
     return slot;
 }
 
-int ioreq_mmio_finish(vm_t *vm,
-                      struct sel4_iohandler_buffer *iobuf,
-                      unsigned int slot)
+int ioreq_finish(struct sel4_iohandler_buffer *iobuf, unsigned int slot)
 {
     struct sel4_ioreq *ioreq;
     struct sel4_ioreq_mmio *mmio;
@@ -100,13 +116,19 @@ int ioreq_mmio_finish(vm_t *vm,
         return -1;
     }
 
-    if (!ioreq_is_mmio(ioreq)) {
-        sync_sem_post(&handoff);
-        return 0;
-    }
+    int err = ioacks[slot].callback(ioreq, ioacks[slot].cookie);
 
-    mmio = ioreq_to_mmio(ioreq);
-    vm_vcpu_t *vcpu = vm->vcpus[mmio->vcpu];
+    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
+
+    return err;
+}
+
+static int ioreq_mmio_finish(struct sel4_ioreq *ioreq, void *cookie)
+{
+    vm_vcpu_t *vcpu = cookie;
+
+    struct sel4_ioreq_mmio *mmio = ioreq_to_mmio(ioreq);
+
     if (mmio->direction == SEL4_IO_DIR_READ) {
         seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
         seL4_Word data = 0;
@@ -119,8 +141,6 @@ int ioreq_mmio_finish(vm_t *vm,
     } else {
         advance_vcpu_fault(vcpu);
     }
-
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
 
     return 0;
 }
@@ -151,46 +171,53 @@ int ioreq_pci_start(struct sel4_iohandler_buffer *iobuf,
 
     ioreq->type = SEL4_IOREQ_TYPE_PCI;
 
+    if (!ioreq_sync.initialized) {
+        if (sync_sem_new(&_vka, &ioreq_sync.handoff, 0)) {
+            ZF_LOGF("Unable to allocate handoff semaphore");
+        }
+        ioreq_sync.initialized = true;
+    }
+
+    ioacks[slot].callback = ioreq_pci_finish;
+    ioacks[slot].cookie = &ioreq_sync;
+
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
 
     return slot;
 }
 
-uint32_t ioreq_pci_finish(struct sel4_iohandler_buffer *iobuf,
-                          unsigned int slot)
+static int ioreq_pci_finish(struct sel4_ioreq *ioreq, void *cookie)
 {
+    ioreq_sync_t *sync = cookie;
+
     uint32_t data = 0;
-    struct sel4_ioreq *ioreq;
     struct sel4_ioreq_pci *pci;
-
-    sync_sem_wait(&handoff);
-
-    assert(iobuf);
-
-    ioreq = ioreq_slot_to_ptr(iobuf, slot);
-    assert(ioreq);
-
-    if (!ioreq_state_complete(ioreq)) {
-        ZF_LOGE("io request is not complete");
-        return 0;
-    }
 
     pci = ioreq_to_pci(ioreq);
 
-    if (pci->direction == SEL4_IO_DIR_READ)
+    if (pci->direction == SEL4_IO_DIR_READ) {
         memcpy(&data, &pci->data, pci->len);
+        sync->value = data;
+    }
 
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
+    sync_sem_post(&sync->handoff);
 
-    return data;
+    return 0;
+}
+
+int ioreq_wait(uint64_t *value)
+{
+    sync_sem_wait(&ioreq_sync.handoff);
+
+    if (value) {
+        *value = ioreq_sync.value;
+    }
+
+    return 0;
 }
 
 void ioreq_init(struct sel4_iohandler_buffer *iobuf)
 {
-    if (sync_sem_new(&_vka, &handoff, 0)) {
-        ZF_LOGF("Unable to allocate handoff semaphore");
-    }
-
     for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
         ioreq_set_state(ioreq_slot_to_ptr(iobuf, i), SEL4_IOREQ_STATE_FREE);
     }

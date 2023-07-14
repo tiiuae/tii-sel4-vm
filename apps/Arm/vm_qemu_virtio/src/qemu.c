@@ -182,7 +182,7 @@ static bool handle_async(rpcmsg_t *msg)
 
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_IO_HANDLED:
-        if (ioreq_mmio_finish(vm, iobuf, msg->mr1))
+        if (ioreq_finish(iobuf, msg->mr1))
             return false;
         break;
     case QEMU_OP_START_VM: {
@@ -247,16 +247,20 @@ static inline void backend_notify(void)
     intervm_source_emit();
 }
 
-static inline uint32_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
+static inline uint64_t qemu_pci_start(virtio_qemu_t *qemu, unsigned int dir,
                                       uintptr_t offset, size_t size,
-                                      uint32_t value)
+                                      uint64_t value)
 {
     int slot = ioreq_pci_start(iobuf, qemu->idx, dir, offset, size, value);
     assert(ioreq_slot_valid(slot));
 
     backend_notify();
 
-    value = ioreq_pci_finish(iobuf, slot);
+    int err = ioreq_wait(&value);
+    if (err) {
+        ZF_LOGE("ioreq_wait() failed");
+        return 0;
+    }
 
     return value;
 }

@@ -22,17 +22,14 @@ int ioreq_mmio_start(struct sel4_iohandler_buffer *iobuf,
                      uintptr_t offset, size_t size,
                      uint64_t val);
 
-int ioreq_mmio_finish(vm_t *vm,
-                      struct sel4_iohandler_buffer *iobuf,
-                      unsigned int slot);
-
 int ioreq_pci_start(struct sel4_iohandler_buffer *iobuf,
                     unsigned int pcidev, unsigned int direction,
                     uintptr_t offset, size_t size,
                     uint32_t value);
 
-uint32_t ioreq_pci_finish(struct sel4_iohandler_buffer *iobuf,
-                          unsigned int slot);
+int ioreq_finish(struct sel4_iohandler_buffer *iobuf, unsigned int slot);
+
+int ioreq_wait(uint64_t *value);
 
 void ioreq_init(struct sel4_iohandler_buffer *iobuf);
 
