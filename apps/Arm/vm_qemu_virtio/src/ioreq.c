@@ -62,17 +62,17 @@ static int ioreq_next_free_slot(struct sel4_iohandler_buffer *iobuf)
     return -1;
 }
 
-int ioreq_start(struct sel4_iohandler_buffer *iobuf, vm_vcpu_t *vcpu,
-                uint32_t addr_space,  unsigned int direction,
-                uintptr_t offset, size_t size, uint64_t val)
+int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
+                unsigned int direction, uintptr_t offset, size_t size,
+                uint64_t val)
 {
     struct sel4_ioreq *ioreq;
 
-    assert(iobuf && size >= 0 && size <= sizeof(val));
+    assert(io_proxy && io_proxy->iobuf && size >= 0 && size <= sizeof(val));
 
-    int slot = ioreq_next_free_slot(iobuf);
+    int slot = ioreq_next_free_slot(io_proxy->iobuf);
 
-    ioreq = ioreq_slot_to_ptr(iobuf, slot);
+    ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
     if (!ioreq)
         return -1;
 
@@ -99,13 +99,13 @@ int ioreq_start(struct sel4_iohandler_buffer *iobuf, vm_vcpu_t *vcpu,
     return slot;
 }
 
-int ioreq_finish(struct sel4_iohandler_buffer *iobuf, unsigned int slot)
+int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
 {
     struct sel4_ioreq *ioreq;
 
-    assert(iobuf);
+    assert(io_proxy && io_proxy->iobuf);
 
-    ioreq = ioreq_slot_to_ptr(iobuf, slot);
+    ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
     assert(ioreq);
 
     if (!ioreq_state_complete(ioreq)) {
@@ -178,10 +178,10 @@ int ioreq_wait(uint64_t *value)
     return 0;
 }
 
-void ioreq_init(struct sel4_iohandler_buffer *iobuf)
+void io_proxy_init(io_proxy_t *io_proxy)
 {
     for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
-        ioreq_set_state(ioreq_slot_to_ptr(iobuf, i), SEL4_IOREQ_STATE_FREE);
+        ioreq_set_state(ioreq_slot_to_ptr(io_proxy->iobuf, i), SEL4_IOREQ_STATE_FREE);
     }
     mb();
 }

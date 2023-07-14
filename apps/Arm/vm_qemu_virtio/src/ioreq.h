@@ -19,14 +19,22 @@ typedef uint64_t __u64;
 
 #define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
 
-int ioreq_start(struct sel4_iohandler_buffer *iobuf, vm_vcpu_t *vcpu,
-                uint32_t addr_space, unsigned int direction,
-                uintptr_t offset, size_t size,
+typedef struct io_proxy {
+    struct sel4_iohandler_buffer *iobuf;
+    void (*backend_notify)(struct io_proxy *io_proxy);
+} io_proxy_t;
+
+static inline void io_proxy_backend_notify(io_proxy_t *io_proxy)
+{
+    io_proxy->backend_notify(io_proxy);
+}
+
+int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
+                unsigned int direction, uintptr_t offset, size_t size,
                 uint64_t val);
 
-int ioreq_finish(struct sel4_iohandler_buffer *iobuf, unsigned int slot);
+int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot);
 
 int ioreq_wait(uint64_t *value);
 
-void ioreq_init(struct sel4_iohandler_buffer *iobuf);
-
+void io_proxy_init(io_proxy_t *io_proxy);

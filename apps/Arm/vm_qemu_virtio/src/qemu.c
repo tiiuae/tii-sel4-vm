@@ -50,6 +50,7 @@ extern vka_t _vka;
 extern const int vmid;
 
 static void intervm_callback(void *opaque);
+static void vm0_backend_notify(io_proxy_t *io_proxy);
 
 static void wait_for_backend(void);
 
@@ -59,6 +60,7 @@ static vm_t *vm;
 
 typedef struct pcidev {
     unsigned int idx;
+    io_proxy_t *io_proxy;
 } pcidev_t;
 
 /************************** PCI typedefs end here ***************************/
@@ -73,14 +75,14 @@ extern vmm_pci_space_t *pci;
 
 static shared_irq_line_t irq_line;
 
-static void backend_notify(void);
-
 /************************ main declarations end here ************************/
 
 /*********************** PCI declarations begin here ************************/
 
 static pcidev_t *pci_devs[16];
 static unsigned int pci_dev_count;
+
+static io_proxy_t vm0_io_proxy;
 
 /************************ PCI declarations end here *************************/
 
@@ -90,11 +92,11 @@ static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
                                      uintptr_t offset, size_t size,
                                      uint64_t value)
 {
-    int slot = ioreq_start(iobuf, VCPU_NONE, AS_PCIDEV(pcidev->idx), dir,
-                           offset, size, value);
+    int slot = ioreq_start(pcidev->io_proxy, VCPU_NONE, AS_PCIDEV(pcidev->idx),
+                           dir, offset, size, value);
     assert(ioreq_slot_valid(slot));
 
-    backend_notify();
+    io_proxy_backend_notify(pcidev->io_proxy);
 
     int err = ioreq_wait(&value);
     if (err) {
@@ -149,7 +151,8 @@ static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
     pci_cfg_write(cookie, offset, 4, val);
 }
 
-static int pcidev_register(vm_t *vm, vmm_pci_space_t *pci)
+static int pcidev_register(vm_t *vm, vmm_pci_space_t *pci,
+                           io_proxy_t *io_proxy)
 {
     pcidev_t *pcidev = calloc(1, sizeof(*pcidev));
     if (!pcidev) {
@@ -177,6 +180,7 @@ static int pcidev_register(vm_t *vm, vmm_pci_space_t *pci)
     vmm_pci_add_entry(pci, entry, NULL);
 
     pcidev->idx = pci_dev_count;
+    pcidev->io_proxy = io_proxy;
 
     ZF_LOGI("Registering PCI device %u", pcidev->idx);
 
@@ -208,7 +212,7 @@ static int handle_pci(rpcmsg_t *msg)
         err = pcidev_intx_set(msg->mr1, false);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
-        err = pcidev_register(vm, pci);
+        err = pcidev_register(vm, pci, &vm0_io_proxy);
         break;
     default:
         return 0;
@@ -225,8 +229,6 @@ static int handle_pci(rpcmsg_t *msg)
 
 static void user_pre_load_linux(void)
 {
-    ioreq_init(iobuf);
-
     if (sync_sem_new(&_vka, &backend_started, 0)) {
         ZF_LOGF("Unable to allocate handoff semaphore");
     }
@@ -250,7 +252,7 @@ static int handle_mmio(rpcmsg_t *msg)
         return 0;
     }
 
-    int err = ioreq_finish(iobuf, msg->mr1);
+    int err = ioreq_finish(&vm0_io_proxy, msg->mr1);
     if (err) {
         return -1;
     }
@@ -331,24 +333,20 @@ static void wait_for_backend(void)
     } while (!ok_to_run);
 }
 
-static void backend_notify(void)
-{
-    intervm_source_emit();
-}
-
-
-static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr,
+                                   size_t len, io_proxy_t *io_proxy)
 {
     int err;
 
-    err = ioreq_start(iobuf, vcpu, AS_GLOBAL, SEL4_IO_DIR_READ, paddr, len, 0);
+    err = ioreq_start(io_proxy, vcpu, AS_GLOBAL, SEL4_IO_DIR_READ, paddr, len, 0);
     if (err < 0) {
         ZF_LOGF("Failure starting mmio read request");
     }
-    backend_notify();
+    io_proxy_backend_notify(io_proxy);
 }
 
-static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
+static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr,
+                                    size_t len, io_proxy_t *io_proxy)
 {
     uint32_t mask;
     uint32_t value;
@@ -358,25 +356,32 @@ static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len
     mask = get_vcpu_fault_data_mask(vcpu) >> s;
     value = get_vcpu_fault_data(vcpu) & mask;
 
-    err = ioreq_start(iobuf, vcpu, AS_GLOBAL, SEL4_IO_DIR_WRITE, paddr, len, value);
+    err = ioreq_start(io_proxy, vcpu, AS_GLOBAL, SEL4_IO_DIR_WRITE, paddr, len, value);
     if (err < 0) {
         ZF_LOGF("Failure starting mmio write request");
     }
-    backend_notify();
+    io_proxy_backend_notify(io_proxy);
 }
 
 static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie)
 {
+    io_proxy_t *io_proxy = cookie;
+
     if (is_vcpu_read_fault(vcpu)) {
-        qemu_read_fault(vcpu, paddr, len);
+        qemu_read_fault(vcpu, paddr, len, io_proxy);
     } else {
-        qemu_write_fault(vcpu, paddr, len);
+        qemu_write_fault(vcpu, paddr, len, io_proxy);
     }
 
     /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
+}
+
+static void vm0_backend_notify(io_proxy_t *io_proxy)
+{
+    intervm_source_emit();
 }
 
 static void qemu_init(vm_t *_vm, void *cookie)
@@ -386,8 +391,13 @@ static void qemu_init(vm_t *_vm, void *cookie)
     vm = _vm;
 
     if (vmid != 0) {
+        vm0_io_proxy.iobuf = iobuf;
+        vm0_io_proxy.backend_notify = vm0_backend_notify;
+
+        io_proxy_init(&vm0_io_proxy);
+
         reservation = vm_reserve_memory_at(vm, PCI_MEM_REGION_ADDR, 524288,
-                                           qemu_fault_handler, NULL);
+                                           qemu_fault_handler, &vm0_io_proxy);
         ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
 
         int err = shared_irq_line_init(&irq_line, vm->vcpus[BOOT_VCPU],
