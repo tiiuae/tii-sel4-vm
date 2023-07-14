@@ -333,47 +333,29 @@ static void wait_for_backend(void)
     } while (!ok_to_run);
 }
 
-static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr,
-                                   size_t len, io_proxy_t *io_proxy)
-{
-    int err;
-
-    err = ioreq_start(io_proxy, vcpu, AS_GLOBAL, SEL4_IO_DIR_READ, paddr, len, 0);
-    if (err < 0) {
-        ZF_LOGF("Failure starting mmio read request");
-    }
-    io_proxy_backend_notify(io_proxy);
-}
-
-static inline void qemu_write_fault(vm_vcpu_t *vcpu, uintptr_t paddr,
-                                    size_t len, io_proxy_t *io_proxy)
-{
-    uint32_t mask;
-    uint32_t value;
-    int err;
-
-    seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-    mask = get_vcpu_fault_data_mask(vcpu) >> s;
-    value = get_vcpu_fault_data(vcpu) & mask;
-
-    err = ioreq_start(io_proxy, vcpu, AS_GLOBAL, SEL4_IO_DIR_WRITE, paddr, len, value);
-    if (err < 0) {
-        ZF_LOGF("Failure starting mmio write request");
-    }
-    io_proxy_backend_notify(io_proxy);
-}
-
-static memory_fault_result_t qemu_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
+static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie)
 {
     io_proxy_t *io_proxy = cookie;
 
-    if (is_vcpu_read_fault(vcpu)) {
-        qemu_read_fault(vcpu, paddr, len, io_proxy);
-    } else {
-        qemu_write_fault(vcpu, paddr, len, io_proxy);
+    unsigned int dir = SEL4_IO_DIR_READ;
+    uint64_t value = 0;
+
+    if (!is_vcpu_read_fault(vcpu)) {
+        seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
+        uint64_t mask = get_vcpu_fault_data_mask(vcpu) >> s;
+        value = get_vcpu_fault_data(vcpu) & mask;
+        dir = SEL4_IO_DIR_WRITE;
     }
+
+    int err = ioreq_start(io_proxy, vcpu, AS_GLOBAL, dir, paddr, len, value);
+    if (err) {
+        ZF_LOGE("ioreq_start() failed (%d)", err);
+        return FAULT_ERROR;
+    }
+
+    io_proxy_backend_notify(io_proxy);
 
     /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
@@ -397,7 +379,7 @@ static void qemu_init(vm_t *_vm, void *cookie)
         io_proxy_init(&vm0_io_proxy);
 
         reservation = vm_reserve_memory_at(vm, PCI_MEM_REGION_ADDR, 524288,
-                                           qemu_fault_handler, &vm0_io_proxy);
+                                           mmio_fault_handler, &vm0_io_proxy);
         ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
 
         int err = shared_irq_line_init(&irq_line, vm->vcpus[BOOT_VCPU],
