@@ -51,47 +51,103 @@ extern const int vmid;
 
 static void intervm_callback(void *opaque);
 
-static vmm_pci_config_t make_pcidev_config(void *cookie);
-
 static void wait_for_backend(void);
 
 static vm_t *vm;
 
-/*********************** main declarations begin here ***********************/
-
-static shared_irq_line_t irq_line;
-
-/************************ main declarations end here ************************/
-
-static void user_pre_load_linux(void)
-{
-    ioreq_init(iobuf);
-
-    if (sync_sem_new(&_vka, &backend_started, 0)) {
-        ZF_LOGF("Unable to allocate handoff semaphore");
-    }
-
-    if (intervm_sink_reg_callback(intervm_callback, ctrl)) {
-        ZF_LOGF("Problem registering intervm sink callback");
-    }
-
-    /* load_linux() eventually calls fdt_generate_vpci_node(), which blocks
-     * unless backend is already running. Therefore we need to listen to start
-     * signal here before proceeding to load_linux() in VM_Arm.
-     */
-    ZF_LOGI("waiting for virtio backend");
-    wait_for_backend();
-    ZF_LOGI("virtio backend up, continuing");
-}
+/************************* PCI typedefs begin here **************************/
 
 typedef struct pcidev {
     unsigned int idx;
 } pcidev_t;
 
+/************************** PCI typedefs end here ***************************/
+
+/************************** PCI externs begin here **************************/
+
 extern vmm_pci_space_t *pci;
+
+/*************************** PCI externs end here ***************************/
+
+/*********************** main declarations begin here ***********************/
+
+static shared_irq_line_t irq_line;
+
+static void backend_notify(void);
+
+/************************ main declarations end here ************************/
+
+/*********************** PCI declarations begin here ************************/
 
 static pcidev_t *pci_devs[16];
 static unsigned int pci_dev_count;
+
+/************************ PCI declarations end here *************************/
+
+/*************************** PCI code begins here ***************************/
+
+static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
+                                     uintptr_t offset, size_t size,
+                                     uint64_t value)
+{
+    int slot = ioreq_start(iobuf, VCPU_NONE, AS_PCIDEV(pcidev->idx), dir,
+                           offset, size, value);
+    assert(ioreq_slot_valid(slot));
+
+    backend_notify();
+
+    int err = ioreq_wait(&value);
+    if (err) {
+        ZF_LOGE("ioreq_wait() failed");
+        return 0;
+    }
+
+    return value;
+}
+
+#define pci_cfg_read(_pcidev, _offset, _sz) \
+    pci_cfg_start(_pcidev, SEL4_IO_DIR_READ, _offset, _sz, 0)
+#define pci_cfg_write(_pcidev, _offset, _sz, _val) \
+    pci_cfg_start(_pcidev, SEL4_IO_DIR_WRITE, _offset, _sz, _val)
+
+static uint8_t pci_cfg_read8(void *cookie, vmm_pci_address_t addr,
+                             unsigned int offset)
+{
+    if (offset == 0x3c) {
+        return VIRTIO_PLAT_INTERRUPT_LINE;
+    }
+    return pci_cfg_read(cookie, offset, 1);
+}
+
+static uint16_t pci_cfg_read16(void *cookie, vmm_pci_address_t addr,
+                               unsigned int offset)
+{
+    return pci_cfg_read(cookie, offset, 2);
+}
+
+static uint32_t pci_cfg_read32(void *cookie, vmm_pci_address_t addr,
+                                  unsigned int offset)
+{
+    return pci_cfg_read(cookie, offset, 4);
+}
+
+static void pci_cfg_write8(void *cookie, vmm_pci_address_t addr,
+                           unsigned int offset, uint8_t val)
+{
+    pci_cfg_write(cookie, offset, 1, val);
+}
+
+static void pci_cfg_write16(void *cookie, vmm_pci_address_t addr,
+                            unsigned int offset, uint16_t val)
+{
+    pci_cfg_write(cookie, offset, 2, val);
+}
+
+static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
+                            unsigned int offset, uint32_t val)
+{
+    pci_cfg_write(cookie, offset, 4, val);
+}
 
 static int pcidev_register(vm_t *vm, vmm_pci_space_t *pci)
 {
@@ -107,8 +163,17 @@ static int pcidev_register(vm_t *vm, vmm_pci_space_t *pci)
         .fun = 0,
     };
 
-    vmm_pci_entry_t entry = vmm_pci_create_passthrough(bogus_addr,
-                                                       make_pcidev_config(pcidev));
+    vmm_pci_config_t config = {
+        .cookie = pcidev,
+        .ioread8 = pci_cfg_read8,
+        .ioread16 = pci_cfg_read16,
+        .ioread32 = pci_cfg_read32,
+        .iowrite8 = pci_cfg_write8,
+        .iowrite16 = pci_cfg_write16,
+        .iowrite32 = pci_cfg_write32,
+    };
+
+    vmm_pci_entry_t entry = vmm_pci_create_passthrough(bogus_addr, config);
     vmm_pci_add_entry(pci, entry, NULL);
 
     pcidev->idx = pci_dev_count;
@@ -154,6 +219,29 @@ static int handle_pci(rpcmsg_t *msg)
     }
 
     return 1;
+}
+
+/**************************** PCI code ends here ****************************/
+
+static void user_pre_load_linux(void)
+{
+    ioreq_init(iobuf);
+
+    if (sync_sem_new(&_vka, &backend_started, 0)) {
+        ZF_LOGF("Unable to allocate handoff semaphore");
+    }
+
+    if (intervm_sink_reg_callback(intervm_callback, ctrl)) {
+        ZF_LOGF("Problem registering intervm sink callback");
+    }
+
+    /* load_linux() eventually calls fdt_generate_vpci_node(), which blocks
+     * unless backend is already running. Therefore we need to listen to start
+     * signal here before proceeding to load_linux() in VM_Arm.
+     */
+    ZF_LOGI("waiting for PCI backend");
+    wait_for_backend();
+    ZF_LOGI("PCI backend up, continuing");
 }
 
 static int handle_mmio(rpcmsg_t *msg)
@@ -243,86 +331,11 @@ static void wait_for_backend(void)
     } while (!ok_to_run);
 }
 
-static inline void backend_notify(void)
+static void backend_notify(void)
 {
     intervm_source_emit();
 }
 
-static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
-                                     uintptr_t offset, size_t size,
-                                     uint64_t value)
-{
-    int slot = ioreq_start(iobuf, VCPU_NONE, AS_PCIDEV(pcidev->idx), dir,
-                           offset, size, value);
-    assert(ioreq_slot_valid(slot));
-
-    backend_notify();
-
-    int err = ioreq_wait(&value);
-    if (err) {
-        ZF_LOGE("ioreq_wait() failed");
-        return 0;
-    }
-
-    return value;
-}
-
-#define pci_cfg_read(_pcidev, _offset, _sz) \
-    pci_cfg_start(_pcidev, SEL4_IO_DIR_READ, _offset, _sz, 0)
-#define pci_cfg_write(_pcidev, _offset, _sz, _val) \
-    pci_cfg_start(_pcidev, SEL4_IO_DIR_WRITE, _offset, _sz, _val)
-
-static uint8_t pci_cfg_read8(void *cookie, vmm_pci_address_t addr,
-                             unsigned int offset)
-{
-    if (offset == 0x3c) {
-        return VIRTIO_PLAT_INTERRUPT_LINE;
-    }
-    return pci_cfg_read(cookie, offset, 1);
-}
-
-static uint16_t pci_cfg_read16(void *cookie, vmm_pci_address_t addr,
-                               unsigned int offset)
-{
-    return pci_cfg_read(cookie, offset, 2);
-}
-
-static uint32_t pci_cfg_read32(void *cookie, vmm_pci_address_t addr,
-                                  unsigned int offset)
-{
-    return pci_cfg_read(cookie, offset, 4);
-}
-
-static void pci_cfg_write8(void *cookie, vmm_pci_address_t addr,
-                           unsigned int offset, uint8_t val)
-{
-    pci_cfg_write(cookie, offset, 1, val);
-}
-
-static void pci_cfg_write16(void *cookie, vmm_pci_address_t addr,
-                            unsigned int offset, uint16_t val)
-{
-    pci_cfg_write(cookie, offset, 2, val);
-}
-
-static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
-                            unsigned int offset, uint32_t val)
-{
-    pci_cfg_write(cookie, offset, 4, val);
-}
-
-static vmm_pci_config_t make_pcidev_config(void *cookie)
-{
-    return (vmm_pci_config_t) {
-        .cookie = cookie,
-        .ioread8 = pci_cfg_read8,
-        .ioread16 = pci_cfg_read16,
-        .ioread32 = pci_cfg_read32,
-        .iowrite8 = pci_cfg_write8,
-        .iowrite16 = pci_cfg_write16,
-        .iowrite32 = pci_cfg_write32,
-    };
-}
 
 static inline void qemu_read_fault(vm_vcpu_t *vcpu, uintptr_t paddr, size_t len)
 {
