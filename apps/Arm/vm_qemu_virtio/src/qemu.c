@@ -6,9 +6,6 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
-#include <camkes.h>
-#include <vmlinux.h>
-#include <sync/sem.h>
 #include <sel4vm/guest_vm.h>
 #include <sel4vm/guest_vcpu_fault.h>
 #include <sel4vm/guest_ram.h>
@@ -33,27 +30,9 @@
 
 #define VIRTIO_PLAT_INTERRUPT_LINE VIRTIO_CON_PLAT_INTERRUPT_LINE
 
-typedef int (*rpc_callback_fn_t)(rpcmsg_t *msg);
-
-extern void *iobuf;
-
-/* VM0 does not have these */
-int WEAK intervm_sink_reg_callback(void (*)(void *), void *);
-
-volatile int ok_to_run = 0;
-
-static sync_sem_t backend_started;
+typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, rpcmsg_t *msg);
 
 extern vka_t _vka;
-
-extern const int vmid;
-
-static void intervm_callback(void *opaque);
-static void vm0_backend_notify(io_proxy_t *io_proxy);
-
-static void wait_for_backend(void);
-
-static vm_t *vm;
 
 /************************* PCI typedefs begin here **************************/
 
@@ -80,8 +59,6 @@ static shared_irq_line_t irq_line;
 
 static pcidev_t *pci_devs[16];
 static unsigned int pci_dev_count;
-
-static io_proxy_t vm0_io_proxy;
 
 /************************ PCI declarations end here *************************/
 
@@ -150,8 +127,7 @@ static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
     pci_cfg_write(cookie, offset, 4, val);
 }
 
-static int pcidev_register(vm_t *vm, vmm_pci_space_t *pci,
-                           io_proxy_t *io_proxy)
+static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy)
 {
     pcidev_t *pcidev = calloc(1, sizeof(*pcidev));
     if (!pcidev) {
@@ -199,7 +175,7 @@ static int pcidev_intx_set(unsigned int intx, bool level)
     return shared_irq_line_change(&irq_line, intx, level);
 }
 
-static int handle_pci(rpcmsg_t *msg)
+static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
 {
     int err = 0;
 
@@ -211,7 +187,7 @@ static int handle_pci(rpcmsg_t *msg)
         err = pcidev_intx_set(msg->mr1, false);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
-        err = pcidev_register(vm, pci, &vm0_io_proxy);
+        err = pcidev_register(pci, io_proxy);
         break;
     default:
         return 0;
@@ -226,32 +202,13 @@ static int handle_pci(rpcmsg_t *msg)
 
 /**************************** PCI code ends here ****************************/
 
-static void user_pre_load_linux(void)
-{
-    if (sync_sem_new(&_vka, &backend_started, 0)) {
-        ZF_LOGF("Unable to allocate handoff semaphore");
-    }
-
-    if (intervm_sink_reg_callback(intervm_callback, ctrl)) {
-        ZF_LOGF("Problem registering intervm sink callback");
-    }
-
-    /* load_linux() eventually calls fdt_generate_vpci_node(), which blocks
-     * unless backend is already running. Therefore we need to listen to start
-     * signal here before proceeding to load_linux() in VM_Arm.
-     */
-    ZF_LOGI("waiting for PCI backend");
-    wait_for_backend();
-    ZF_LOGI("PCI backend up, continuing");
-}
-
-static int handle_mmio(rpcmsg_t *msg)
+static int handle_mmio(io_proxy_t *io_proxy, rpcmsg_t *msg)
 {
     if (QEMU_OP(msg->mr0) != QEMU_OP_IO_HANDLED) {
         return 0;
     }
 
-    int err = ioreq_finish(&vm0_io_proxy, msg->mr1);
+    int err = ioreq_finish(io_proxy, msg->mr1);
     if (err) {
         return -1;
     }
@@ -259,12 +216,12 @@ static int handle_mmio(rpcmsg_t *msg)
     return 1;
 }
 
-static int handle_control(rpcmsg_t *msg)
+static int handle_control(io_proxy_t *io_proxy, rpcmsg_t *msg)
 {
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_START_VM:
-        ok_to_run = 1;
-        sync_sem_post(&backend_started);
+        io_proxy->ok_to_run = 1;
+        sync_sem_post(&io_proxy->backend_started);
         break;
     default:
         return 0;
@@ -280,8 +237,10 @@ static rpc_callback_fn_t rpc_callbacks[] = {
     NULL,
 };
 
-static int rpc_run(rpcmsg_queue_t *q)
+int rpc_run(io_proxy_t *io_proxy)
 {
+    rpcmsg_queue_t *q = io_proxy->rx_queue;
+
     while (!rpcmsg_queue_empty(q)) {
         rpcmsg_t *msg = rpcmsg_queue_head(q);
         if (!msg) {
@@ -289,7 +248,7 @@ static int rpc_run(rpcmsg_queue_t *q)
         }
         int rc = 0;
         for (rpc_callback_fn_t *cb = rpc_callbacks; !rc && *cb; cb++) {
-            rc = (*cb)(msg);
+            rc = (*cb)(io_proxy, msg);
         }
         if (rc == -1) {
             return -1;
@@ -301,35 +260,6 @@ static int rpc_run(rpcmsg_queue_t *q)
     }
 
     return 0;
-}
-
-static void intervm_callback(void *opaque)
-{
-    int err = intervm_sink_reg_callback(intervm_callback, opaque);
-    assert(!err);
-
-    err = rpc_run(rx_queue);
-    if (err) {
-        ZF_LOGF("rpc_run() failed, guest corrupt");
-        /* no return */
-    }
-}
-
-static void wait_for_backend(void)
-{
-    // camkes_protect_reply_cap() ??
-    /* TODO: in theory it should be enough to wait for the semaphore
-     * but seems that any virtio console input makes the wait operation
-     * complete without the corresponding post operation ever called.
-     * It could be some kind of programming error but first we need
-     * to study seL4 IPC in more depth.
-     */
-    do {
-        ZF_LOGI("backend_started sem value = %d", backend_started.value);
-        int err = sync_sem_wait(&backend_started);
-        ZF_LOGI("sync_sem_wait rv = %d", err);
-        ZF_LOGI("backend_started sem value = %d", backend_started.value);
-    } while (!ok_to_run);
 }
 
 static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
@@ -360,37 +290,52 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
     return FAULT_HANDLED;
 }
 
-static void vm0_backend_notify(io_proxy_t *io_proxy)
+static int irq_init(vm_t *vm)
 {
-    intervm_source_emit();
-}
+    static bool done = false;
 
-static void qemu_init(vm_t *_vm, void *cookie)
-{
-    vm_memory_reservation_t *reservation;
-
-    vm = _vm;
-
-    if (vmid != 0) {
-        vm0_io_proxy.iobuf = mmio_reqs(iobuf);
-        vm0_io_proxy.backend_notify = vm0_backend_notify;
-        vm0_io_proxy.rx_queue = rx_queue(iobuf);
-
-        io_proxy_init(&vm0_io_proxy);
-
-        reservation = vm_reserve_memory_at(vm, PCI_MEM_REGION_ADDR, 524288,
-                                           mmio_fault_handler, &vm0_io_proxy);
-        ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
-
+    if (!done) {
         int err = shared_irq_line_init(&irq_line, vm->vcpus[BOOT_VCPU],
                                        VIRTIO_PLAT_INTERRUPT_LINE);
-        if (err) {
-            ZF_LOGF("shared_irq_line_init() failed");
-            /* no return */
-        }
 
-        user_pre_load_linux();
+        if (!err) {
+            done = true;
+        }
     }
+
+    return done ? 0 : -1;
 }
 
-DEFINE_MODULE(qemu, NULL, qemu_init)
+int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
+{
+    io_proxy_init(io_proxy);
+
+    vm_memory_reservation_t *reservation;
+
+    reservation = vm_reserve_memory_at(vm, io_proxy->mmio_addr,
+                                       io_proxy->mmio_size, mmio_fault_handler,
+                                       io_proxy);
+    ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
+
+    int err = irq_init(vm);
+    if (err) {
+        ZF_LOGE("irq_init() failed");
+        return -1;
+    }
+
+    err = io_proxy_set_callback(io_proxy);
+    if (err) {
+        ZF_LOGE("io_proxy_set_callback() failed");
+        return -1;
+    }
+
+    /* load_linux() eventually calls fdt_generate_vpci_node(), which blocks
+     * unless backend is already running. Therefore we need to listen to start
+     * signal here before proceeding to load_linux() in VM_Arm.
+     */
+    ZF_LOGI("waiting for PCI backend");
+    io_proxy_wait_for_backend(io_proxy);
+    ZF_LOGI("PCI backend up, continuing");
+
+    return 0;
+}

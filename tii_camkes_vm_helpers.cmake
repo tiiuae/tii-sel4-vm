@@ -38,6 +38,9 @@ function(DeclareTIICAmkESVM name)
         C_FLAGS
         "-DSEL4_VMM"
         TEMPLATE_SOURCES
+        seL4VirtIODeviceVM.template.c
+        seL4VirtIODriverVM.template.c
         TEMPLATE_HEADERS
+        seL4VirtIODeviceVM.template.h
     )
 endfunction(DeclareTIICAmkESVM)

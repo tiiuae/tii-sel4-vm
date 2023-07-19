@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include <sync/sem.h>
+
 #include <sel4vm/guest_vm.h>
 #include <sel4vmmplatsupport/ioports.h>
 
@@ -21,14 +23,30 @@ typedef uint64_t __u64;
 #define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
 
 typedef struct io_proxy {
+    sync_sem_t backend_started;
+    int ok_to_run;
     struct sel4_iohandler_buffer *iobuf;
     rpcmsg_queue_t *rx_queue;
     void (*backend_notify)(struct io_proxy *io_proxy);
+    int (*set_callback)(struct io_proxy *io_proxy);
+    uintptr_t mmio_addr;
+    size_t mmio_size;
+    uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
 } io_proxy_t;
 
 static inline void io_proxy_backend_notify(io_proxy_t *io_proxy)
 {
     io_proxy->backend_notify(io_proxy);
+}
+
+static inline int io_proxy_set_callback(io_proxy_t *io_proxy)
+{
+    return io_proxy->set_callback(io_proxy);
+}
+
+static uintptr_t io_proxy_iobuf_page(io_proxy_t *io_proxy, unsigned int page)
+{
+    return io_proxy->iobuf_page_get(io_proxy, page);
 }
 
 int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
@@ -39,4 +57,10 @@ int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot);
 
 int ioreq_wait(uint64_t *value);
 
+void io_proxy_wait_for_backend(io_proxy_t *io_proxy);
+
 void io_proxy_init(io_proxy_t *io_proxy);
+
+int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy);
+
+int rpc_run(io_proxy_t *io_proxy);
