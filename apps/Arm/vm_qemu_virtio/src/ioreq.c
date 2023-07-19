@@ -175,8 +175,20 @@ int ioreq_wait(uint64_t *value)
     return 0;
 }
 
+void io_proxy_wait_for_backend(io_proxy_t *io_proxy)
+{
+    volatile int *ok_to_run = &io_proxy->ok_to_run;
+    while (!*ok_to_run) {
+        sync_sem_wait(&io_proxy->backend_started);
+    };
+}
+
 void io_proxy_init(io_proxy_t *io_proxy)
 {
+    if (sync_sem_new(&_vka, &io_proxy->backend_started, 0)) {
+        ZF_LOGF("Unable to allocate semaphore");
+    }
+
     for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
         ioreq_set_state(ioreq_slot_to_ptr(io_proxy->iobuf, i), SEL4_IOREQ_STATE_FREE);
     }
