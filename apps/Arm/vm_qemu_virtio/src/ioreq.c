@@ -10,9 +10,6 @@
 
 #include "ioreq.h"
 
-#define ioreq_to_mmio(_ioreq) (&(_ioreq)->req.mmio)
-#define ioreq_to_pci(_ioreq) (&(_ioreq)->req.pci)
-
 #define mb() __sync_synchronize()
 #define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
 #define atomic_store_release(ptr, i)  __atomic_store_n(ptr, i, __ATOMIC_RELEASE);
