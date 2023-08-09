@@ -32,7 +32,7 @@ int shared_irq_line_change(shared_irq_line_t *line, unsigned int source,
         return -1;
     }
 
-    unsigned int saved_sources = line->sources;
+    uint64_t saved_sources = line->sources;
 
     if (active) {
         line->sources |= 1 << source;
