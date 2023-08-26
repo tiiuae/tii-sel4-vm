@@ -1,78 +1,47 @@
 /*
- * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ * Copyright 2023, Technology Innovation Institute
  *
- * SPDX-License-Identifier: BSD-2-Clause
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
 #include <camkes.h>
+
 #include <sel4vm/guest_vm.h>
-#include <sel4vm/guest_memory.h>
-#include <sel4vm/guest_memory_helpers.h>
 #include <sel4vm/guest_ram.h>
-#include <sel4vmmplatsupport/guest_memory_util.h>
 #include <vmlinux.h>
 
-extern const int vmid;
+#include <tii/ram_dataport.h>
 
-extern dataport_caps_handle_t memdev_handle;
-
-/* Hack to pass the information to vm_ram_touch() in libsel4vm/src/guest_ram.c
- * without making libsel4vm depend on CAmkES being linked in.
- */
-uintptr_t __attribute__((weak)) ram_base(void)
-{
-    return vm_config.ram.base;
-}
-
-size_t __attribute__((weak)) ram_size(void)
-{
-    return vm_config.ram.size;
-}
-
-static vm_frame_t dataport_memory_iterator(uintptr_t addr, void *cookie)
-{
-    cspacepath_t return_frame;
-    vm_frame_t frame_result = { seL4_CapNull, seL4_NoRights, 0, 0 };
-
-    int sz = seL4_PageBits;
-    if (addr >= vm_config.ram.base && addr < (vm_config.ram.base + vm_config.ram.size)) {
-        sz = seL4_LargePageBits;
-    }
-
-    uintptr_t frame_start = ROUND_DOWN(addr, BIT(sz));
-    if (frame_start < vm_config.ram.base || frame_start > vm_config.ram.base + vm_config.ram.size) {
-        ZF_LOGE("Error: Not dataport ram region");
-        return frame_result;
-    }
-
-    int page_idx = (frame_start - vm_config.ram.base) / BIT(sz);
-    frame_result.cptr = dataport_get_nth_frame_cap(&memdev_handle, page_idx);
-    frame_result.rights = seL4_AllRights;
-    frame_result.vaddr = frame_start;
-    frame_result.size_bits = sz;
-    return frame_result;
-}
-
-static void original_init_ram_module(vm_t *vm, void *cookie)
-{
-    int err = vm_ram_register_at(vm, vm_config.ram.base, vm_config.ram.size, vm_config.map_one_to_one);
-    assert(!err);
-}
+/* TODO: add proper definition to libsel4vm's include/sel4vm/guest_ram.h */
+extern bool is_ram_region(vm_t *vm, uintptr_t addr, size_t size);
 
 void init_ram_module(vm_t *vm, void *cookie)
 {
     int err;
 
-    if (vmid == 0) {
-        ZF_LOGI("initializing RAM module the old way");
-        original_init_ram_module(vm, cookie);
+    err = ram_dataport_map_all(vm);
+    if (err) {
+        ZF_LOGF("ram_dataport_map_all() failed: %d", err);
+        /* no return */
+    }
+
+    if (is_ram_region(vm, vm_config.ram.base, vm_config.ram.size)) {
+        ZF_LOGI("Guest RAM mapped from dataport");
         return;
     }
 
-    ZF_LOGI("initializing RAM module from dataport");
+    err = vm_ram_register_at(vm, vm_config.ram.base, vm_config.ram.size,
+                             vm_config.map_one_to_one);
+    if (err) {
+        ZF_LOGF("vm_ram_register_at() failed: %d", err);
+        /* no return */
+    }
 
-    err = vm_ram_register_at_custom_iterator(vm, vm_config.ram.base, vm_config.ram.size, dataport_memory_iterator, NULL);
-    assert(!err);
+    if (vm_config.map_one_to_one) {
+        ZF_LOGI("Guest RAM mapped from untyped memory (unity stage-2 mapping)");
+    } else {
+        ZF_LOGI("Guest RAM mapped from allocator pool (NO unity stage-2 mapping)");
+    }
 }
