@@ -1,0 +1,241 @@
+/*
+ * Copyright 2022, 2023, Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#include <configurations/vm.h>
+
+#define GUEST_ENTRY_OFFSET  0x200000
+
+#define VM_INITRD_MAX_SIZE  0x2000000   // 32 MB
+#define VM_DTB_MAX_SIZE     0x1000000   // 16 MB
+
+#define VM0_RAM_BASE    0x10000000
+#define VM0_RAM_SIZE    0x20000000
+#define VM0_DTB_ADDR    VM0_RAM_BASE + VM0_RAM_SIZE - VM_DTB_MAX_SIZE
+#define VM0_INITRD_ADDR VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM0_ENTRY_ADDR  VM0_RAM_BASE + GUEST_ENTRY_OFFSET
+
+#define VM1_RAM_BASE    0x48000000
+#define VM1_RAM_SIZE    0x08000000
+#define VM1_DTB_ADDR    VM1_RAM_BASE + VM1_RAM_SIZE - VM_DTB_MAX_SIZE
+#define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
+
+#define VM2_RAM_BASE    0x50000000
+#define VM2_RAM_SIZE    0x08000000
+#define VM2_DTB_ADDR    VM2_RAM_BASE + VM2_RAM_SIZE - VM_DTB_MAX_SIZE
+#define VM2_INITRD_ADDR VM2_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM2_ENTRY_ADDR  VM2_RAM_BASE + GUEST_ENTRY_OFFSET
+
+#define VM1_VIRTIO_BUFFER_BASE  VM1_RAM_BASE
+#define VM1_VIRTIO_BUFFER_SIZE  VM1_RAM_SIZE
+
+#define VM1_VIRTIO_MMIO_BASE    0x60000000
+#define VM1_VIRTIO_MMIO_SIZE    0x00080000
+
+#define VM2_VIRTIO_BUFFER_BASE  VM2_RAM_BASE
+#define VM2_VIRTIO_BUFFER_SIZE  VM2_RAM_SIZE
+
+#define VM2_VIRTIO_MMIO_BASE    0x60000000
+#define VM2_VIRTIO_MMIO_SIZE    0x00080000
+
+assembly {
+    composition {}
+    configuration {
+        vm0_vm1_memdev.paddr = VM1_RAM_BASE;
+        vm0_vm1_memdev.size = VM1_RAM_SIZE;
+        vm0_vm1_iobuf.size = VM1_RAM_SIZE;
+
+        vm0_vm2_memdev.paddr = VM2_RAM_BASE;
+        vm0_vm2_memdev.size = VM2_RAM_SIZE;
+        vm0_vm2_iobuf.size = VM2_RAM_SIZE;
+
+        vm0.vm_address_config = {
+            "ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
+            "ram_paddr_base" : VAR_STRINGIZE(VM0_RAM_BASE),
+            "ram_size" : VAR_STRINGIZE(VM0_RAM_SIZE),
+            "dtb_addr" : VAR_STRINGIZE(VM0_DTB_ADDR),
+            "initrd_addr" : VAR_STRINGIZE(VM0_INITRD_ADDR),
+            "kernel_entry_addr" : VAR_STRINGIZE(VM0_ENTRY_ADDR),
+        };
+        vm0.num_vcpus = 1;
+        vm0.vm_image_config = {
+            "kernel_bootcmdline" :
+                "console=ttyS0,115200 "
+                "earlycon=uart8250,mmio32,0xfe215040 "
+                "8250.nr_uarts=1 "
+                "rw "
+                "debug "
+                "loglevel=7 "
+                "pci=nomsi "
+                "nosmp "
+                "cma=64M "
+                "initcall_blacklist=clk_disable_unused ",
+            "kernel_stdout" : "/soc/serial@7e215040",
+            "generate_dtb" : true,
+            "provide_dtb" : false,
+            "map_one_to_one" : true,
+        };
+        vm0.vm_virtio_drivers = [
+            {
+                "id" : 1,
+                "base" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_BASE),
+                "size" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_SIZE),
+                "mmio_base" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_BASE),
+                "mmio_size" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_SIZE),
+            },
+            {
+                "id" : 2,
+                "base" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_BASE),
+                "size" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_SIZE),
+                "mmio_base" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_BASE),
+                "mmio_size" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_SIZE),
+            },
+        ];
+        vm0.tracebuffer_base = 0x08800000;
+        vm0.tracebuffer_size = 0x200000;
+        vm0.mmios = [
+            "0xff846000:0x1000:12"
+        ];
+        vm0.untyped_mmios = [
+            "0x10000000:28",  // RAM
+            "0x20000000:28",
+            "0x600000000:33", // PCIe
+        ];
+        vm0.simple_untyped24_pool = 12;
+        vm0.irqs =  [];
+        vm0.dtb = dtb([
+            { "path": "/soc/mailbox@7e00b880" },
+            { "path": "/soc/serial@7e215040" },
+            { "path": "/soc/cprman@7e101000" },
+            { "path": "/soc/gpio@7e200000" },
+            // UART 0 pinctrl
+            /*
+            { "path": "/soc/gpio@7e200000/bt_pins" },
+            { "path": "/soc/gpio@7e200000/uart0_pins" },
+            { "path": "/soc/gpio@7e200000/uart0_gpio14" },
+            */
+            { "path": "/scb/ethernet@7d580000" },
+            // Communication to VC
+            { "path": "/soc/mailbox@7e00b880" },
+            { "path": "/soc/firmware" },
+            // Required by HDMI driver
+            { "path": "/soc/dma-ranges" },
+            { "path": "/soc/dma@7e007000" },
+            { "path": "/soc/interrupt-controller@7ef00100" },
+            // HDMI0
+            { "path": "/soc/hdmi@7ef00700" },
+            { "path": "/soc/i2c@7ef04500" },
+            { "path": "/soc/pixelvalve@7e20a000" },
+            // HDMI1
+            { "path": "/soc/hdmi@7ef05700" },
+            { "path": "/soc/i2c@7ef09500" },
+            { "path": "/soc/pixelvalve@7e216000" },
+            // GPU
+            { "path": "/soc/hvs@7e400000" },
+            { "path": "/soc/txp@7e004000" },
+            { "path": "/gpu" },
+            // Required by 3D acceleration
+            { "path": "/soc/cprman@7e101000" },
+            { "path": "/soc/watchdog@7e100000" },
+            { "path": "/v3dbus/v3d@7ec04000" },
+            // PCIe
+            { "path": "/scb/pcie@7d500000" },
+            { "path": "/scb/pcie@7d500000/pci@0,0" },
+            // USB
+            // TODO: Here need to be following line,
+            // but build system are not able to proceess it
+            // So it will be added in fdt_manipulation.c
+            // Ticket to track: HYPR-434
+            // { "path": "/scb/pcie@7d500000/pci@0,0/usb@0,0" },
+            { "path": "/soc/firmware/reset" },
+            // ramoops memory
+            { "path": "/reserved-memory"},
+        ]);
+
+        vm1.vm_address_config = {
+            "ram_base" : VAR_STRINGIZE(VM1_RAM_BASE),
+            "ram_paddr_base" : VAR_STRINGIZE(VM1_RAM_BASE),
+            "ram_size" : VAR_STRINGIZE(VM1_RAM_SIZE),
+            "dtb_addr" : VAR_STRINGIZE(VM1_DTB_ADDR),
+            "initrd_addr" : VAR_STRINGIZE(VM1_INITRD_ADDR),
+            "kernel_entry_addr" : VAR_STRINGIZE(VM1_ENTRY_ADDR),
+        };
+        vm1.vm_image_config = {
+            "kernel_bootcmdline" :
+                "console=hvc0 "
+                "earlycon=pl011,mmio32,0x09000000 "
+                "root=/dev/vda2 "
+                "rw "
+                "debug "
+                "loglevel=8 "
+                "pci=nomsi "
+                "initcall_blacklist=clk_disable_unused ",
+            "kernel_stdout" : "hvc0",
+            "provide_initrd" : false,
+            "generate_dtb" : true,
+            "provide_dtb" : false,
+        };
+        vm1.vm_virtio_devices = [
+            {
+                "id" : 0,
+                "base" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_BASE),
+                "size" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_SIZE),
+                "mmio_base" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_BASE),
+                "mmio_size" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_SIZE),
+            },
+        ];
+        vm1.mmios = [
+            "0x09000000:0x1000:12",
+            "0x60000000:0x80000:12",
+            "0xff846000:0x1000:12"
+        ];
+        vm1.simple_untyped24_pool = 12;
+        /* Note that RAM is not specified here */
+        vm1.irqs =  [];
+        vm1.dtb = dtb([{}]);
+
+        vm2.vm_address_config = {
+            "ram_base" : VAR_STRINGIZE(VM2_RAM_BASE),
+            "ram_paddr_base" : VAR_STRINGIZE(VM2_RAM_BASE),
+            "ram_size" : VAR_STRINGIZE(VM2_RAM_SIZE),
+            "dtb_addr" : VAR_STRINGIZE(VM2_DTB_ADDR),
+            "initrd_addr" : VAR_STRINGIZE(VM2_INITRD_ADDR),
+            "kernel_entry_addr" : VAR_STRINGIZE(VM2_ENTRY_ADDR),
+        };
+        vm2.vm_image_config = {
+            "kernel_bootcmdline" :
+                "console=hvc0 "
+                "earlycon=pl011,mmio32,0x09000000 "
+                "root=/dev/vda2 "
+                "rw "
+                "debug "
+                "loglevel=8 "
+                "pci=nomsi "
+                "initcall_blacklist=clk_disable_unused ",
+            "kernel_stdout" : "hvc0",
+            "provide_initrd" : false,
+            "generate_dtb" : true,
+            "provide_dtb" : false,
+        };
+        vm2.vm_virtio_devices = [
+            {
+                "id" : 0,
+                "base" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_BASE),
+                "size" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_SIZE),
+                "mmio_base" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_BASE),
+                "mmio_size" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_SIZE),
+            },
+        ];
+        vm2.mmios = [
+            "0x09000000:0x1000:12",
+            "0x60000000:0x80000:12",
+            "0xff846000:0x1000:12"
+        ];
+        vm2.simple_untyped24_pool = 12;
+        /* Note that RAM is not specified here */
+        vm2.irqs =  [];
+        vm2.dtb = dtb([{}]);
+    }
+}
