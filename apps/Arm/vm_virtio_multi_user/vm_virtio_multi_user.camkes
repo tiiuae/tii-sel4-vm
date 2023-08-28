@@ -1,0 +1,83 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ * Copyright 2021, 2022, 2023 Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+#include <configurations/tii/vm.h>
+
+import <std_connector.camkes>;
+import <global-connectors.camkes>;
+import <seL4VMDTBPassthrough.idl4>;
+import <FileServerInterface.camkes>;
+import <FileServer/FileServer.camkes>;
+import <SerialServer/SerialServer.camkes>;
+import <TimeServer/TimeServer.camkes>;
+import <vm-connectors.camkes>;
+import <devices.camkes>;
+
+component VM0 {
+    VM_TII_INIT_DEF()
+
+    VIRTIO_DRIVER_COMPONENT_DEF(1)
+    VIRTIO_DRIVER_COMPONENT_DEF(2)
+}
+
+component VM1 {
+    VM_TII_INIT_DEF()
+
+    VIRTIO_DEVICE_COMPONENT_DEF(0)
+}
+
+component VM2 {
+    VM_TII_INIT_DEF()
+
+    VIRTIO_DEVICE_COMPONENT_DEF(0)
+}
+
+assembly {
+    composition {
+        /* Boilerplate composition settings */
+        VM_GENERAL_COMPOSITION_DEF()
+
+        /* Other standard VM definitions (vm0, vm1) */
+        VM_COMPOSITION_DEF(0)
+        VM_COMPOSITION_DEF(1)
+        VM_COMPOSITION_DEF(2)
+
+        VIRTIO_COMPOSITION_DEF(0, 1)
+        VIRTIO_COMPOSITION_DEF(0, 2)
+
+        /* DTB Passthrough */
+        connection seL4VMDTBPassthrough vm0_dtb(from vm0.dtb_self, to vm0.dtb);
+        connection seL4VMDTBPassthrough vm1_dtb(from vm1.dtb_self, to vm1.dtb);
+        connection seL4VMDTBPassthrough vm2_dtb(from vm2.dtb_self, to vm2.dtb);
+    }
+    configuration {
+        VM_GENERAL_CONFIGURATION_DEF()
+        VM_TII_CONFIGURATION_DEF(0)
+        VM_TII_CONFIGURATION_DEF(1)
+        VM_TII_CONFIGURATION_DEF(2)
+
+        vm0.num_extra_frame_caps = 0;
+        vm0.extra_frame_map_address = 0;
+        vm0.cnode_size_bits = 23;
+        vm0.base_prio = 100;
+        vm0._priority = 121;
+
+        vm1.num_extra_frame_caps = 0;
+        vm1.extra_frame_map_address = 0;
+        vm1.cnode_size_bits = 23;
+
+        vm1.base_prio = 100;
+        vm1._priority = 101;
+
+        vm2.num_extra_frame_caps = 0;
+        vm2.extra_frame_map_address = 0;
+        vm2.cnode_size_bits = 23;
+
+        vm2.base_prio = 100;
+        vm2._priority = 101;
+    }
+}
