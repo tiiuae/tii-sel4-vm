@@ -25,9 +25,9 @@ if("${PLATFORM}" STREQUAL "qemu-arm-virt")
     set(KernelArmExportPTMRUser ON CACHE BOOL "" FORCE)
 elseif("${PLATFORM}" STREQUAL "rpi4")
     set(KernelCustomDTS
-        "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/dts/rpi4.dts"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../hardware/${PLATFORM}/dts/rpi4.dts"
         CACHE FILEPATH "" FORCE)
     set(KernelCustomDTSOverlay
-        "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/dts/overlay-rpi4.dts"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../hardware/${PLATFORM}/dts/overlay-rpi4.dts"
         CACHE FILEPATH "" FORCE)
 endif()
