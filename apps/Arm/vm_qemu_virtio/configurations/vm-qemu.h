@@ -8,8 +8,6 @@
     attribute int tracebuffer_size; \
     attribute int ramoops_base; \
     attribute int ramoops_size; \
-    attribute int guest_large_pages = false; \
-    attribute int cross_connector_large_pages = false; \
     attribute int vmid; \
 
 #define VM_QEMU_CONFIGURATION_DEF(num) \
