@@ -22,34 +22,18 @@
 #define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
 
-#define VIRTIO_BUFFER_BASE  VM1_RAM_BASE
-#define VIRTIO_BUFFER_SIZE  VM1_RAM_SIZE
+#define VM1_VIRTIO_BUFFER_BASE  VM1_RAM_BASE
+#define VM1_VIRTIO_BUFFER_SIZE  VM1_RAM_SIZE
 
-#define VIRTIO_MMIO_BASE    0x60000000
-#define VIRTIO_MMIO_SIZE    0x10000000
-
-/* Backend QEMU reads these settings from its host kernel /proc/cmdline and
- * adjusts the 'virt' machine memory map accordingly.
- */
-#define VIRTIO_FE_CONFIG(_vmid, _buffer_base, _buffer_size, _mmio_base, _mmio_size) \
-    "uservm=" \
-        VAR_STRINGIZE(_vmid) "," \
-        VAR_STRINGIZE(_buffer_base) "," \
-        VAR_STRINGIZE(_buffer_size) "," \
-        VAR_STRINGIZE(_mmio_base) "," \
-        VAR_STRINGIZE(_mmio_size) " "
+#define VM1_VIRTIO_MMIO_BASE    0x60000000
+#define VM1_VIRTIO_MMIO_SIZE    0x00080000
 
 assembly {
     composition {}
     configuration {
-        vm_memdev.paddr = VM1_RAM_BASE;
-        vm_memdev.size = VM1_RAM_SIZE;
-
-        /* It is important to have equal size for all dataports, otherwise
-         * Linux kernel remaps the PCI devices. seL4's vPCI does not
-         * support that and everything would break.
-         */
-        vm_iobuf.size = VM1_RAM_SIZE;
+        vm0_vm1_memdev.paddr = VM1_RAM_BASE;
+        vm0_vm1_memdev.size = VM1_RAM_SIZE;
+        vm0_vm1_iobuf.size = VM1_RAM_SIZE;
 
         vm0.vm_address_config = {
             "ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
@@ -71,15 +55,21 @@ assembly {
                 "pci=nomsi "
                 "nosmp "
                 "cma=64M "
-                VIRTIO_FE_CONFIG(1, VIRTIO_BUFFER_BASE, VIRTIO_BUFFER_SIZE,
-                                 VIRTIO_MMIO_BASE, VIRTIO_MMIO_SIZE)
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "/soc/serial@7e215040",
             "generate_dtb" : true,
             "provide_dtb" : false,
             "map_one_to_one" : true,
         };
-        vm0.cross_connector_large_pages = true;
+        vm0.vm_virtio_drivers = [
+            {
+                "id" : 1,
+                "base" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_BASE),
+                "size" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_SIZE),
+                "mmio_base" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_BASE),
+                "mmio_size" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_SIZE),
+            },
+        ];
         vm0.tracebuffer_base = 0x08800000;
         vm0.tracebuffer_size = 0x200000;
         vm0.mmios = [
@@ -164,7 +154,15 @@ assembly {
             "generate_dtb" : true,
             "provide_dtb" : false,
         };
-        vm1.guest_large_pages = true;
+        vm1.vm_virtio_devices = [
+            {
+                "id" : 0,
+                "base" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_BASE),
+                "size" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_SIZE),
+                "mmio_base" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_BASE),
+                "mmio_size" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_SIZE),
+            },
+        ];
         vm1.mmios = [
             "0x09000000:0x1000:12",
             "0x60000000:0x80000:12",

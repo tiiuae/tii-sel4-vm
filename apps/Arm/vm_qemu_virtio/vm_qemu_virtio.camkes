@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-#include <configurations/vm.h>
-#include <vm-qemu.h>
+#include <configurations/tii/vm.h>
 
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
@@ -18,14 +17,16 @@ import <TimeServer/TimeServer.camkes>;
 import <vm-connectors.camkes>;
 import <devices.camkes>;
 
-component VM {
-    VM_QEMU_INIT_DEF()
+component VM0 {
+    VM_TII_INIT_DEF()
 
-    emits    QemuReqAck intervm_source;
-    consumes QemuReqAck intervm_sink;
+    VIRTIO_DRIVER_COMPONENT_DEF(1)
+}
 
-    dataport Buf(4096) iobuf;
-    dataport Buf(4096) memdev;
+component VM1 {
+    VM_TII_INIT_DEF()
+
+    VIRTIO_DEVICE_COMPONENT_DEF(0)
 }
 
 assembly {
@@ -37,11 +38,7 @@ assembly {
         VM_COMPOSITION_DEF(0)
         VM_COMPOSITION_DEF(1)
 
-        connection seL4SharedDataWithCaps vm_iobuf(from vm0.iobuf, to vm1.iobuf);
-        connection seL4SharedDataWithCaps vm_memdev(from vm0.memdev, to vm1.memdev);
-
-        connection seL4GlobalAsynch u2d(from vm1.intervm_source, to vm0.intervm_sink);
-        connection seL4Notification d2u(from vm0.intervm_source, to vm1.intervm_sink);
+        VIRTIO_COMPOSITION_DEF(0, 1)
 
         /* DTB Passthrough */
         connection seL4VMDTBPassthrough vm0_dtb(from vm0.dtb_self, to vm0.dtb);
@@ -49,8 +46,8 @@ assembly {
     }
     configuration {
         VM_GENERAL_CONFIGURATION_DEF()
-        VM_QEMU_CONFIGURATION_DEF(0)
-        VM_QEMU_CONFIGURATION_DEF(1)
+        VM_TII_CONFIGURATION_DEF(0)
+        VM_TII_CONFIGURATION_DEF(1)
 
         vm0.num_extra_frame_caps = 0;
         vm0.extra_frame_map_address = 0;
