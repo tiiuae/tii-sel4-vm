@@ -7,19 +7,10 @@
 
 cmake_minimum_required(VERSION 3.12.0)
 include(settings.cmake)
-project(camkes-vm C CXX ASM)
+project(tii-camkes-vm C CXX ASM)
 
-set(TII_CAMKES_VM_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE STRING "")
-mark_as_advanced(TII_CAMKES_VM_DIR)
-
-if(AppArch STREQUAL "Arm")
-	find_package(camkes-arm-vm REQUIRED)
-	camkes_arm_vm_setup_arm_vm_environment()
-else()
-	message(FATAL_ERROR "Unsupported")
-endif()
-
-CAmkESAddTemplatesPath(templates)
+find_package(tii-camkes-vm REQUIRED)
+tii_camkes_vm_setup()
 
 set(CAmkESCPP ON CACHE BOOL "" FORCE)
 
@@ -35,41 +26,34 @@ config_option(
     OFF
 )
 
-add_config_library(tii_camkes_vm "${configure_string}")
+add_config_library(tii_sel4vm "${configure_string}")
 
 file(
     GLOB
-        tii_camkes_vm_sources
+        tii_sel4vm_sources
         src/*.c
-        src/modules/*.c
 if(KernelPlatformRpi4)
-	src/plat/rpi4/*.c
+        src/plat/rpi4/*.c
 else()
         src/plat/${KernelPlatform}/*.c
 endif()
 )
 
-list(
-    APPEND tii_camkes_vm_includes
-    ${ARM_VM_PROJECT_DIR}/components/VM_Arm/include
-    ${ARM_VM_PROJECT_DIR}/components/VM_Arm/plat_include/${KernelPlatform}
-)
-
-add_library(tii_camkes_vm OBJECT ${tii_camkes_vm_sources})
+add_library(tii_sel4vm OBJECT ${tii_sel4vm_sources})
 
 target_include_directories(
-    tii_camkes_vm
-    PRIVATE ${tii_camkes_vm_includes}
+    tii_sel4vm
     PUBLIC include
 )
 target_link_libraries(
-    tii_camkes_vm
+    tii_sel4vm
     fdt
     sel4_autoconf
-    sel4camkes
+    sel4sync
     sel4vm
     sel4vmmplatsupport
-    tii_camkes_vm_Config
+    tii_sel4vm_Config
+    virtioarm
 )
 
 # Add VM application
