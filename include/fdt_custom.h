@@ -14,6 +14,8 @@
 #include <libfdt.h>
 #include <utils/util.h>
 
+int fdt_plat_customize(vm_t *vm, void *dtb_buf);
+
 int fdt_generate_reserved_node(void *fdt, const char *name,
                                const char *compatible, uintptr_t base,
                                size_t size, uint32_t *phandle);
