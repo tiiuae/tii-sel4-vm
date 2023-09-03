@@ -1,0 +1,43 @@
+#
+# Copyright 2022, 2023, Technology Innovation Institute
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+include(${CAMKES_ARM_VM_HELPERS_PATH})
+
+# Let's make assumption for the workspace layout. Can be overridden in cmake
+# invocation/cmake cache editor
+set(VM_IMAGES_DIR "${TII_CAMKES_VM_DIR}/../../vm-images/build/tmp/deploy/images/vm-raspberrypi4-64" CACHE STRING "")
+set(VM_IMAGE_LINUX "${VM_IMAGES_DIR}/Image" CACHE STRING "VM kernel image")
+set(VM_IMAGE_INITRD "${VM_IMAGES_DIR}/vm-image-boot-vm-raspberrypi4-64.cpio.gz" CACHE STRING "VM initramfs")
+
+CAmkESAddImportPath(${KernelARMPlatform})
+
+CAmkESAddTemplatesPath(${TII_CAMKES_VM_DIR}/templates)
+
+CAmkESAddCPPInclude(${TII_CAMKES_VM_DIR})
+
+file(
+    GLOB
+        tii_camkes_vm_sources
+        ${TII_CAMKES_VM_DIR}/src/camkes/*.c
+        ${TII_CAMKES_VM_DIR}/src/camkes/modules/*.c
+)
+
+function(DeclareTIICAmkESVM name)
+    DeclareCAmkESARMVM(${name})
+    DeclareCAmkESComponent(
+        ${name}
+        SOURCES
+        ${tii_camkes_vm_sources}
+        LIBS
+        tii_sel4vm
+        tii_sel4vm_Config
+        virtioarm
+        C_FLAGS
+        "-DSEL4_VMM"
+        TEMPLATE_SOURCES
+        TEMPLATE_HEADERS
+    )
+endfunction(DeclareTIICAmkESVM)
