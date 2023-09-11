@@ -22,6 +22,11 @@ typedef uint64_t __u64;
 
 #define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
 
+typedef struct ioack {
+    int (*callback)(struct sel4_ioreq *ioreq, void *cookie);
+    void *cookie;
+} ioack_t;
+
 typedef struct io_proxy {
     sync_sem_t backend_started;
     int ok_to_run;
@@ -36,6 +41,7 @@ typedef struct io_proxy {
     uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
     void *dtb_buf;
     vka_t *vka;
+    ioack_t ioacks[SEL4_MAX_IOREQS];
 } io_proxy_t;
 
 static inline void io_proxy_backend_notify(io_proxy_t *io_proxy)

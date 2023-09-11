@@ -39,6 +39,7 @@ extern vka_t _vka;
 
 typedef struct pcidev {
     unsigned int idx;
+    unsigned int remote_index;
     io_proxy_t *io_proxy;
 } pcidev_t;
 
@@ -69,7 +70,7 @@ static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
                                      uintptr_t offset, size_t size,
                                      uint64_t value)
 {
-    int slot = ioreq_start(pcidev->io_proxy, VCPU_NONE, AS_PCIDEV(pcidev->idx),
+    int slot = ioreq_start(pcidev->io_proxy, VCPU_NONE, AS_PCIDEV(pcidev->remote_index),
                            dir, offset, size, value);
     assert(ioreq_slot_valid(slot));
 
@@ -128,7 +129,8 @@ static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
     pci_cfg_write(cookie, offset, 4, val);
 }
 
-static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy)
+static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
+                           uint32_t remote_index)
 {
     pcidev_t *pcidev = calloc(1, sizeof(*pcidev));
     if (!pcidev) {
@@ -153,9 +155,15 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy)
     };
 
     vmm_pci_entry_t entry = vmm_pci_create_passthrough(bogus_addr, config);
-    vmm_pci_add_entry(pci, entry, NULL);
+    vmm_pci_address_t addr;
+    int err = vmm_pci_add_entry(pci, entry, &addr);
+    if (err) {
+        ZF_LOGE("vmm_pci_add_entry() failed (%d)", err);
+        return -1;
+    }
 
-    pcidev->idx = pci_dev_count;
+    pcidev->idx = addr.dev;
+    pcidev->remote_index = remote_index;
     pcidev->io_proxy = io_proxy;
 
     ZF_LOGI("Registering PCI device %u", pcidev->idx);
@@ -195,7 +203,7 @@ static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
         err = pcidev_intx_set(msg->mr1, false);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
-        err = pcidev_register(pci, io_proxy);
+        err = pcidev_register(pci, io_proxy, msg->mr1);
         break;
     default:
         return 0;

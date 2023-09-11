@@ -20,11 +20,6 @@
 #define ioreq_state_complete(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_COMPLETE)
 #define ioreq_state_free(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_FREE)
 
-typedef struct ioack {
-    int (*callback)(struct sel4_ioreq *ioreq, void *cookie);
-    void *cookie;
-} ioack_t;
-
 typedef struct ioreq_sync {
     bool initialized;
     sync_sem_t handoff;
@@ -32,7 +27,6 @@ typedef struct ioreq_sync {
 } ioreq_sync_t;
 
 static __thread ioreq_sync_t ioreq_sync;
-static ioack_t ioacks[SEL4_MAX_IOREQS];
 
 static ioreq_sync_t *ioreq_sync_prepare(vka_t *vka);
 static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie);
@@ -68,6 +62,7 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
     int slot = ioreq_next_free_slot(io_proxy->iobuf);
 
     ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
+    ioack_t *ioack = &io_proxy->ioacks[slot];
     if (!ioreq)
         return -1;
 
@@ -82,11 +77,11 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
     }
 
     if (vcpu) {
-        ioacks[slot].callback = ioreq_vcpu_finish;
-        ioacks[slot].cookie = vcpu;
+        ioack->callback = ioreq_vcpu_finish;
+        ioack->cookie = vcpu;
     } else {
-        ioacks[slot].callback = ioreq_sync_finish;
-        ioacks[slot].cookie = ioreq_sync_prepare(io_proxy->vka);
+        ioack->callback = ioreq_sync_finish;
+        ioack->cookie = ioreq_sync_prepare(io_proxy->vka);
     }
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
@@ -101,13 +96,14 @@ int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
     assert(io_proxy && io_proxy->iobuf);
 
     ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
+    ioack_t *ioack = &io_proxy->ioacks[slot];
     assert(ioreq);
 
     if (!ioreq_state_complete(ioreq)) {
         return -1;
     }
 
-    int err = ioacks[slot].callback(ioreq, ioacks[slot].cookie);
+    int err = ioack->callback(ioreq, ioack->cookie);
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
 
