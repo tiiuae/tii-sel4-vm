@@ -64,21 +64,21 @@ const char *append_vm_virtio_device_cmdline(char *buffer)
 {
 /*- if vm_virtio_drivers|length > 0 -*/
     unsigned int id;
-    uintptr_t base, mmio_base;
-    size_t size, mmio_size;
+    uintptr_t data_base, ctrl_base;
+    size_t data_size, ctrl_size;
     char *p = buffer;
 /*- endif -*/
 
 /*- for drv in vm_virtio_drivers -*/
     id = /*? drv.id ?*/;
-    base = /*? drv.base ?*/;
-    size = /*? drv.size ?*/;
-    mmio_base = /*? drv.mmio_base ?*/;
-    mmio_size = /*? drv.mmio_size ?*/;
+    data_base = /*? drv.data_base ?*/;
+    data_size = /*? drv.data_size ?*/;
+    ctrl_base = /*? drv.ctrl_base ?*/;
+    ctrl_size = /*? drv.ctrl_size ?*/;
     /* TODO: safety checks */
     p += strlen(p);
     sprintf(p, " uservm=%u,0x%"PRIxPTR",0x%zx,0x%"PRIxPTR",0x%zx", id,
-            base, size, mmio_base, mmio_size);
+            data_base, data_size, ctrl_base, ctrl_size);
 /*- endfor -*/
 
     return buffer;

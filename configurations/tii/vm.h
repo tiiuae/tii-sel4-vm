@@ -16,17 +16,17 @@
     attribute int ramoops_size; \
     attribute { \
         int id; \
-        string base; \
-        string size; \
-        string mmio_base; \
-        string mmio_size; \
+        string data_base; \
+        string data_size; \
+        string ctrl_base; \
+        string ctrl_size; \
     } vm_virtio_devices[] = []; \
     attribute { \
         int id; \
-        string base; \
-        string size; \
-        string mmio_base; \
-        string mmio_size; \
+        string data_base; \
+        string data_size; \
+        string ctrl_base; \
+        string ctrl_size; \
     } vm_virtio_drivers[] = []; \
 
 #define VM_TII_CONFIGURATION_DEF(num) \
@@ -58,3 +58,23 @@
     connection seL4SharedDataWithCaps vm##_dev##_vm##_drv##_memdev(from vm##_dev.vm##_drv##_memdev, to vm##_drv.vm##_dev##_memdev); \
     connection seL4GlobalAsynch vm##_dev##_vm##_drv##_upcall(from vm##_drv.vm##_dev##_ntfn_send, to vm##_dev.vm##_drv##_ntfn_recv); \
     connection seL4Notification vm##_dev##_vm##_drv##_downcall(from vm##_dev.vm##_drv##_ntfn_send, to vm##_drv.vm##_dev##_ntfn_recv);
+
+#define VIRTIO_CONFIGURATION_DEF(_dev, _drv) \
+    vm##_dev##_vm##_drv##_memdev.base = VM##_dev##_VM##_drv##_VIRTIO_DATA_BASE; \
+    vm##_dev##_vm##_drv##_memdev.size = VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE; \
+    vm##_dev##_vm##_drv##_iobuf.size = VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE; \
+
+#define VIRTIO_GUEST_CONFIGURATION_DEF(_id, _dev, _drv) \
+    { \
+        "id" : _id, \
+        "data_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_BASE), \
+        "data_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE), \
+        "ctrl_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_BASE), \
+        "ctrl_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_SIZE), \
+    },
+
+#define VIRTIO_DEVICE_CONFIGURATION_DEF(_dev, _drv) \
+    VIRTIO_GUEST_CONFIGURATION_DEF(_dev, _dev, _drv)
+
+#define VIRTIO_DRIVER_CONFIGURATION_DEF(_dev, _drv) \
+    VIRTIO_GUEST_CONFIGURATION_DEF(_drv, _dev, _drv)

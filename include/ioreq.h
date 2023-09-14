@@ -29,8 +29,10 @@ typedef struct io_proxy {
     rpcmsg_queue_t *rx_queue;
     void (*backend_notify)(struct io_proxy *io_proxy);
     int (*run)(struct io_proxy *io_proxy);
-    uintptr_t mmio_addr;
-    size_t mmio_size;
+    uintptr_t data_base;
+    size_t data_size;
+    uintptr_t ctrl_base;
+    size_t ctrl_size;
     uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
 } io_proxy_t;
 
