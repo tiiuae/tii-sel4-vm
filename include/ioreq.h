@@ -28,7 +28,7 @@ typedef struct io_proxy {
     struct sel4_iohandler_buffer *iobuf;
     rpcmsg_queue_t *rx_queue;
     void (*backend_notify)(struct io_proxy *io_proxy);
-    int (*set_callback)(struct io_proxy *io_proxy);
+    int (*run)(struct io_proxy *io_proxy);
     uintptr_t mmio_addr;
     size_t mmio_size;
     uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
@@ -39,9 +39,9 @@ static inline void io_proxy_backend_notify(io_proxy_t *io_proxy)
     io_proxy->backend_notify(io_proxy);
 }
 
-static inline int io_proxy_set_callback(io_proxy_t *io_proxy)
+static inline int io_proxy_run(io_proxy_t *io_proxy)
 {
-    return io_proxy->set_callback(io_proxy);
+    return io_proxy->run(io_proxy);
 }
 
 static uintptr_t io_proxy_iobuf_page(io_proxy_t *io_proxy, unsigned int page)

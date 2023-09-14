@@ -323,9 +323,9 @@ int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
         return -1;
     }
 
-    err = io_proxy_set_callback(io_proxy);
+    err = io_proxy_run(io_proxy);
     if (err) {
-        ZF_LOGE("io_proxy_set_callback() failed");
+        ZF_LOGE("io_proxy_run() failed");
         return -1;
     }
 
