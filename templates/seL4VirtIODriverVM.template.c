@@ -55,8 +55,10 @@ int vm/*? dev.id ?*/_io_proxy_run(io_proxy_t *io_proxy)
 }
 
 io_proxy_t vm/*? dev.id ?*/_io_proxy = {
-    .mmio_addr = /*? dev.mmio_base ?*/,
-    .mmio_size = /*? dev.mmio_size ?*/,
+    .data_base = /*? dev.data_base ?*/,
+    .data_size = /*? dev.data_size ?*/,
+    .ctrl_base = /*? dev.ctrl_base ?*/,
+    .ctrl_size = /*? dev.ctrl_size ?*/,
     .run = vm/*? dev.id ?*/_io_proxy_run,
     .iobuf_page_get = vm/*? dev.id ?*/_iobuf_page_get,
     .backend_notify = vm/*? dev.id ?*/_backend_notify,
@@ -73,8 +75,8 @@ int ram_dataport_setup(void)
     extern dataport_caps_handle_t vm/*? dev.id ?*/_memdev_handle;
     dp = &vm/*? dev.id ?*/_memdev_handle;
     ram_dp = &vm/*? dev.id ?*/_ram_dataport;
-    ram_dp->addr = /*? dev.base ?*/,
-    /* TODO: dev.size is ignored, should we do safety check? */
+    ram_dp->addr = /*? dev.data_base ?*/,
+    /* TODO: dev.data_size is ignored, should we do safety check? */
     ram_dp->frames = dp->get_frame_caps();
     ram_dp->num_frames = dp->get_num_frame_caps();
     ram_dp->frame_size_bits = dp->get_frame_size_bits();

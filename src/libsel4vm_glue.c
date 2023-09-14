@@ -312,10 +312,16 @@ int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
 
     vm_memory_reservation_t *reservation;
 
-    reservation = vm_reserve_memory_at(vm, io_proxy->mmio_addr,
-                                       io_proxy->mmio_size, mmio_fault_handler,
+    /* TODO: here we allocate a region for all devices provided by backend,
+     * whereas we should consult capability list of the PCI device to find
+     * out the virtio control plane details -- in other words, do it in
+     * pcidev_register() -- at that point these configuration variables
+     * can be factored out.
+     */
+    reservation = vm_reserve_memory_at(vm, io_proxy->ctrl_base,
+                                       io_proxy->ctrl_size, mmio_fault_handler,
                                        io_proxy);
-    ZF_LOGF_IF(!reservation, "Cannot reserve virtio MMIO region");
+    ZF_LOGF_IF(!reservation, "Cannot reserve vspace for virtio control plane");
 
     int err = irq_init(vm);
     if (err) {
