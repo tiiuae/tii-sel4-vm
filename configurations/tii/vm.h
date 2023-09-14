@@ -64,17 +64,34 @@
     vm##_dev##_vm##_drv##_memdev.size = VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE; \
     vm##_dev##_vm##_drv##_iobuf.size = VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE; \
 
-#define VIRTIO_GUEST_CONFIGURATION_DEF(_id, _dev, _drv) \
+#define VIRTIO_DEVICE_CONFIGURATION_DEF(_dev, _drv) \
     { \
-        "id" : _id, \
+        "id" : _dev, \
         "data_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_BASE), \
         "data_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE), \
         "ctrl_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_BASE), \
         "ctrl_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_SIZE), \
     },
 
-#define VIRTIO_DEVICE_CONFIGURATION_DEF(_dev, _drv) \
-    VIRTIO_GUEST_CONFIGURATION_DEF(_dev, _dev, _drv)
-
 #define VIRTIO_DRIVER_CONFIGURATION_DEF(_dev, _drv) \
-    VIRTIO_GUEST_CONFIGURATION_DEF(_drv, _dev, _drv)
+    { \
+        "id" : _drv, \
+        "data_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_BASE), \
+        "data_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE), \
+        "ctrl_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_BASE), \
+        "ctrl_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_SIZE), \
+    },
+
+#if VMSWIOTLB
+#define VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(_num) \
+        /* additional 16 MB pages for guest RAM */ \
+        vm##_num.simple_untyped24_pool = 12 + (VM##_num##_RAM_SIZE >> 24);
+#else
+#define VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(_num) \
+        /* this setting predates merging ARM VMM to camkes-vm repo */ \
+        vm##_num.simple_untyped24_pool = 12; \
+        /* guest RAM is mapped from virtio buffer dataport, hence we do not \
+         * allocate untyped_mmios for it, nor do we increase \
+         * simple_untyped24_pool. \
+         */
+#endif
