@@ -114,7 +114,7 @@ static int fdt_generate_trace_nodes(void *gen_fdt)
         err = fdt_generate_reserved_node(gen_fdt, "sel4_tracebuffer",
                                          "sel4_tracebuffer", tracebuffer_base,
                                          tracebuffer_size, NULL);
-        if (err) {
+        if (err < 0) {
             return err;
         }
     }
@@ -122,7 +122,7 @@ static int fdt_generate_trace_nodes(void *gen_fdt)
     if (ramoops_base && ramoops_size) {
         err = fdt_generate_reserved_node(gen_fdt, "ramoops", "ramoops",
                                          ramoops_base, ramoops_size, NULL);
-        if (err) {
+        if (err < 0) {
             return err;
         }
     }
