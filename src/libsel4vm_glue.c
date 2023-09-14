@@ -17,6 +17,7 @@
 #include <sel4vmmplatsupport/drivers/pci_helper.h>
 #include <pci/helper.h>
 
+#include <fdt_custom.h>
 #include <tii/shared_irq_line.h>
 
 #include "sel4-qemu.h"
@@ -158,6 +159,13 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy)
     pcidev->io_proxy = io_proxy;
 
     ZF_LOGI("Registering PCI device %u", pcidev->idx);
+
+    err = fdt_generate_virtio_node(io_proxy->dtb_buf, pcidev->idx,
+                                   io_proxy->data_base, io_proxy->data_size);
+    if (err) {
+        ZF_LOGE("fdt_generate_virtio_node() failed (%d)", err);
+        return -1;
+    }
 
     pci_devs[pci_dev_count++] = pcidev;
 
