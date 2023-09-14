@@ -39,16 +39,17 @@ int fdt_generate_reserved_node(void *fdt, const char *name,
                                const char *compatible, uintptr_t base,
                                size_t size, uint32_t *phandle)
 {
-    int root_offset = fdt_path_offset(fdt, "/reserved-memory");
-    int address_cells = fdt_address_cells(fdt, root_offset);
-    int size_cells = fdt_size_cells(fdt, root_offset);
     int err;
 
+    int root_offset = fdt_path_offset(fdt, "/reserved-memory");
     if (root_offset < 0) {
         ZF_LOGE("/reserved-memory node not found");
         err = root_offset;
         goto error;
     }
+
+    int address_cells = fdt_address_cells(fdt, root_offset);
+    int size_cells = fdt_size_cells(fdt, root_offset);
 
     int this = fdt_add_subnode(fdt, root_offset, name);
     if (this < 0) {
@@ -76,9 +77,8 @@ int fdt_generate_reserved_node(void *fdt, const char *name,
         goto error;
     }
 
-    ZF_LOGI("Generated /reserved-memory/%s 0x%"PRIxPTR" - 0x%"PRIxPTR,
-            name, base, base - 1 + size);
-    return 0;
+    ZF_LOGI("Generated /reserved-memory/%s, size %zu", name, size);
+    return this;
 
 error:
     ZF_LOGE("Cannot generate /reserved-memory/%s: %s (%d)", name,
