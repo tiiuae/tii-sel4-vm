@@ -48,7 +48,7 @@ static void vm/*? dev.id ?*/_ntfn_callback(void *opaque)
     }
 }
 
-int vm/*? dev.id ?*/_io_proxy_set_callback(io_proxy_t *io_proxy)
+int vm/*? dev.id ?*/_io_proxy_run(io_proxy_t *io_proxy)
 {
     vm/*? dev.id ?*/_ntfn_callback(io_proxy);
     return 0;
@@ -57,7 +57,7 @@ int vm/*? dev.id ?*/_io_proxy_set_callback(io_proxy_t *io_proxy)
 io_proxy_t vm/*? dev.id ?*/_io_proxy = {
     .mmio_addr = /*? dev.mmio_base ?*/,
     .mmio_size = /*? dev.mmio_size ?*/,
-    .set_callback = vm/*? dev.id ?*/_io_proxy_set_callback,
+    .run = vm/*? dev.id ?*/_io_proxy_run,
     .iobuf_page_get = vm/*? dev.id ?*/_iobuf_page_get,
     .backend_notify = vm/*? dev.id ?*/_backend_notify,
 };
