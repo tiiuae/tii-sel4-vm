@@ -28,14 +28,24 @@
 #define VM2_INITRD_ADDR VM2_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM2_ENTRY_ADDR  VM2_RAM_BASE + GUEST_ENTRY_OFFSET
 
+#if VMSWIOTLB
+#define VM0_VM1_VIRTIO_DATA_BASE        VM2_RAM_BASE + VM2_RAM_SIZE
+#define VM0_VM1_VIRTIO_DATA_SIZE        0x800000    // 8 MB
+#else
 #define VM0_VM1_VIRTIO_DATA_BASE        VM1_RAM_BASE
 #define VM0_VM1_VIRTIO_DATA_SIZE        VM1_RAM_SIZE
+#endif
 
 #define VM0_VM1_VIRTIO_CTRL_BASE        0x60000000
 #define VM0_VM1_VIRTIO_CTRL_SIZE        0x00080000
 
+#if VMSWIOTLB
+#define VM0_VM2_VIRTIO_DATA_BASE        VM0_VM1_VIRTIO_DATA_BASE + VM0_VM1_VIRTIO_DATA_SIZE
+#define VM0_VM2_VIRTIO_DATA_SIZE        0x800000    // 8 MB
+#else
 #define VM0_VM2_VIRTIO_DATA_BASE        VM2_RAM_BASE
 #define VM0_VM2_VIRTIO_DATA_SIZE        VM2_RAM_SIZE
+#endif
 
 #define VM0_VM2_VIRTIO_CTRL_BASE        0x60000000
 #define VM0_VM2_VIRTIO_CTRL_SIZE        0x00080000
@@ -168,10 +178,13 @@ assembly {
             "0x60000000:0x80000:12",
             "0xff846000:0x1000:12"
         ];
-        vm1.simple_untyped24_pool = 12;
-        /* Note that RAM is not specified here */
+
+        VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(1)
+
         vm1.irqs =  [];
-        vm1.dtb = dtb([{}]);
+        vm1.dtb = dtb([
+            { "path": "/reserved-memory"},
+        ]);
 
         vm2.vm_address_config = {
             "ram_base" : VAR_STRINGIZE(VM2_RAM_BASE),
@@ -204,9 +217,12 @@ assembly {
             "0x60000000:0x80000:12",
             "0xff846000:0x1000:12"
         ];
-        vm2.simple_untyped24_pool = 12;
-        /* Note that RAM is not specified here */
+
+        VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(2)
+
         vm2.irqs =  [];
-        vm2.dtb = dtb([{}]);
+        vm2.dtb = dtb([
+            { "path": "/reserved-memory"},
+        ]);
     }
 }
