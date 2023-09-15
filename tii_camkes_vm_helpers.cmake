@@ -18,6 +18,22 @@ CAmkESAddTemplatesPath(${TII_CAMKES_VM_DIR}/templates)
 
 CAmkESAddCPPInclude(${TII_CAMKES_VM_DIR})
 
+set(CAmkESCPP ON CACHE BOOL "" FORCE)
+
+set(configure_string "")
+
+add_config_library(tii_camkes_vm "${configure_string}")
+
+config_option(
+    VmSWIOTLB
+    VM_SWIOTLB
+    "Compile examples with SWIOTLB enabled"
+    DEFAULT
+    ON
+)
+
+AddCamkesCPPFlag(cpp_flags CONFIG_VARS VmSWIOTLB)
+
 file(
     GLOB
         tii_camkes_vm_sources
@@ -33,7 +49,7 @@ function(DeclareTIICAmkESVM name)
         ${tii_camkes_vm_sources}
         LIBS
         tii_sel4vm
-        tii_sel4vm_Config
+        tii_camkes_vm_Config
         virtioarm
         C_FLAGS
         "-DSEL4_VMM"

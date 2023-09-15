@@ -12,12 +12,6 @@ project(tii-camkes-vm C CXX ASM)
 find_package(tii-camkes-vm REQUIRED)
 tii_camkes_vm_setup()
 
-set(CAmkESCPP ON CACHE BOOL "" FORCE)
-
-set(configure_string "")
-
-add_config_library(tii_sel4vm "${configure_string}")
-
 file(
     GLOB
         tii_sel4vm_sources
@@ -42,7 +36,6 @@ target_link_libraries(
     sel4sync
     sel4vm
     sel4vmmplatsupport
-    tii_sel4vm_Config
     virtioarm
 )
 
