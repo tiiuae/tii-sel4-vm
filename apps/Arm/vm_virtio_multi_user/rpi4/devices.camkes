@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <configurations/vm.h>
+#include <configurations/tii/vm.h>
 
 #define GUEST_ENTRY_OFFSET  0x200000
 
@@ -28,28 +28,23 @@
 #define VM2_INITRD_ADDR VM2_DTB_ADDR - VM_INITRD_MAX_SIZE
 #define VM2_ENTRY_ADDR  VM2_RAM_BASE + GUEST_ENTRY_OFFSET
 
-#define VM1_VIRTIO_BUFFER_BASE  VM1_RAM_BASE
-#define VM1_VIRTIO_BUFFER_SIZE  VM1_RAM_SIZE
+#define VM0_VM1_VIRTIO_DATA_BASE        VM1_RAM_BASE
+#define VM0_VM1_VIRTIO_DATA_SIZE        VM1_RAM_SIZE
 
-#define VM1_VIRTIO_MMIO_BASE    0x60000000
-#define VM1_VIRTIO_MMIO_SIZE    0x00080000
+#define VM0_VM1_VIRTIO_CTRL_BASE        0x60000000
+#define VM0_VM1_VIRTIO_CTRL_SIZE        0x00080000
 
-#define VM2_VIRTIO_BUFFER_BASE  VM2_RAM_BASE
-#define VM2_VIRTIO_BUFFER_SIZE  VM2_RAM_SIZE
+#define VM0_VM2_VIRTIO_DATA_BASE        VM2_RAM_BASE
+#define VM0_VM2_VIRTIO_DATA_SIZE        VM2_RAM_SIZE
 
-#define VM2_VIRTIO_MMIO_BASE    0x60000000
-#define VM2_VIRTIO_MMIO_SIZE    0x00080000
+#define VM0_VM2_VIRTIO_CTRL_BASE        0x60000000
+#define VM0_VM2_VIRTIO_CTRL_SIZE        0x00080000
 
 assembly {
     composition {}
     configuration {
-        vm0_vm1_memdev.paddr = VM1_RAM_BASE;
-        vm0_vm1_memdev.size = VM1_RAM_SIZE;
-        vm0_vm1_iobuf.size = VM1_RAM_SIZE;
-
-        vm0_vm2_memdev.paddr = VM2_RAM_BASE;
-        vm0_vm2_memdev.size = VM2_RAM_SIZE;
-        vm0_vm2_iobuf.size = VM2_RAM_SIZE;
+        VIRTIO_CONFIGURATION_DEF(0, 1)
+        VIRTIO_CONFIGURATION_DEF(0, 2)
 
         vm0.vm_address_config = {
             "ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
@@ -78,20 +73,8 @@ assembly {
             "map_one_to_one" : true,
         };
         vm0.vm_virtio_drivers = [
-            {
-                "id" : 1,
-                "base" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_BASE),
-                "size" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_SIZE),
-                "mmio_base" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_BASE),
-                "mmio_size" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_SIZE),
-            },
-            {
-                "id" : 2,
-                "base" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_BASE),
-                "size" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_SIZE),
-                "mmio_base" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_BASE),
-                "mmio_size" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_SIZE),
-            },
+            VIRTIO_DRIVER_CONFIGURATION_DEF(0, 1)
+            VIRTIO_DRIVER_CONFIGURATION_DEF(0, 2)
         ];
         vm0.tracebuffer_base = 0x08800000;
         vm0.tracebuffer_size = 0x200000;
@@ -178,13 +161,7 @@ assembly {
             "provide_dtb" : false,
         };
         vm1.vm_virtio_devices = [
-            {
-                "id" : 0,
-                "base" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_BASE),
-                "size" : VAR_STRINGIZE(VM1_VIRTIO_BUFFER_SIZE),
-                "mmio_base" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_BASE),
-                "mmio_size" : VAR_STRINGIZE(VM1_VIRTIO_MMIO_SIZE),
-            },
+            VIRTIO_DEVICE_CONFIGURATION_DEF(0, 1)
         ];
         vm1.mmios = [
             "0x09000000:0x1000:12",
@@ -220,13 +197,7 @@ assembly {
             "provide_dtb" : false,
         };
         vm2.vm_virtio_devices = [
-            {
-                "id" : 0,
-                "base" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_BASE),
-                "size" : VAR_STRINGIZE(VM2_VIRTIO_BUFFER_SIZE),
-                "mmio_base" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_BASE),
-                "mmio_size" : VAR_STRINGIZE(VM2_VIRTIO_MMIO_SIZE),
-            },
+            VIRTIO_DEVICE_CONFIGURATION_DEF(0, 2)
         ];
         vm2.mmios = [
             "0x09000000:0x1000:12",
