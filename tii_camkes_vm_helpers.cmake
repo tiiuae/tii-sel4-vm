@@ -50,9 +50,6 @@ function(DeclareTIICAmkESVM name)
         LIBS
         tii_sel4vm
         tii_camkes_vm_Config
-        virtioarm
-        C_FLAGS
-        "-DSEL4_VMM"
         TEMPLATE_SOURCES
         seL4VirtIODeviceVM.template.c
         seL4VirtIODriverVM.template.c
