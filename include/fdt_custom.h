@@ -7,7 +7,6 @@
 #pragma once
 
 #include <autoconf.h>
-#include <tii_sel4vm/gen_config.h>
 
 #include <sel4vm/guest_vm.h>
 
