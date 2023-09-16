@@ -10,8 +10,6 @@
 #include <sel4vm/guest_vm.h>
 
 #include <sel4vmmplatsupport/drivers/cross_vm_connection.h>
-#include <sel4vmmplatsupport/drivers/pci_helper.h>
-#include <pci/helper.h>
 
 #ifdef CONFIG_PLAT_QEMU_ARM_VIRT
 #define CONNECTION_BASE_ADDRESS 0xDF000000
