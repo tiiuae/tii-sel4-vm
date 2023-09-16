@@ -35,6 +35,7 @@ typedef struct io_proxy {
     size_t ctrl_size;
     uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
     void *dtb_buf;
+    vka_t *vka;
 } io_proxy_t;
 
 static inline void io_proxy_backend_notify(io_proxy_t *io_proxy)

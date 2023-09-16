@@ -12,6 +12,8 @@
 #include <sel4-qemu.h>
 #include <ioreq.h>
 
+extern vka_t _vka; /* from CAmkES VM */
+
 uintptr_t guest_ram_base;
 size_t guest_ram_size;
 
@@ -25,6 +27,7 @@ void camkes_io_proxy_module_init(vm_t *vm, void *cookie)
     io_proxy->rx_queue = (rpcmsg_queue_t *)io_proxy_iobuf_page(io_proxy, IOBUF_PAGE_VMM_RECV);
     io_proxy->iobuf = (struct sel4_iohandler_buffer *)io_proxy_iobuf_page(io_proxy, IOBUF_PAGE_VMM_MMIO);
     io_proxy->dtb_buf = gen_dtb_buf;
+    io_proxy->vka = &_vka;
 
     int err = libsel4vm_io_proxy_init(vm, io_proxy);
     if (err) {
