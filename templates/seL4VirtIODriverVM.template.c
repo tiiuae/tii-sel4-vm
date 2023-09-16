@@ -7,10 +7,6 @@
 #include <camkes.h>
 #include <vmlinux.h>
 
-#include <sel4vmmplatsupport/drivers/pci_helper.h>
-#include <sel4vmmplatsupport/ioports.h>
-#include <sel4vmmplatsupport/arch/vpci.h>
-
 #include <tii/ram_dataport.h>
 #include <tii/camkes/io_proxy.h>
 
