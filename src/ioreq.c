@@ -34,9 +34,7 @@ typedef struct ioreq_sync {
 static __thread ioreq_sync_t ioreq_sync;
 static ioack_t ioacks[SEL4_MAX_IOREQS];
 
-extern vka_t _vka;
-
-static ioreq_sync_t *ioreq_sync_prepare(void);
+static ioreq_sync_t *ioreq_sync_prepare(vka_t *vka);
 static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie);
 static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie);
 
@@ -88,7 +86,7 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
         ioacks[slot].cookie = vcpu;
     } else {
         ioacks[slot].callback = ioreq_sync_finish;
-        ioacks[slot].cookie = ioreq_sync_prepare();
+        ioacks[slot].cookie = ioreq_sync_prepare(io_proxy->vka);
     }
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
@@ -136,10 +134,10 @@ static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie)
     return 0;
 }
 
-static ioreq_sync_t *ioreq_sync_prepare(void)
+static ioreq_sync_t *ioreq_sync_prepare(vka_t *vka)
 {
     if (!ioreq_sync.initialized) {
-        if (sync_sem_new(&_vka, &ioreq_sync.handoff, 0)) {
+        if (sync_sem_new(vka, &ioreq_sync.handoff, 0)) {
             ZF_LOGF("Unable to allocate handoff semaphore");
         }
         ioreq_sync.initialized = true;
@@ -185,7 +183,7 @@ void io_proxy_wait_for_backend(io_proxy_t *io_proxy)
 
 void io_proxy_init(io_proxy_t *io_proxy)
 {
-    if (sync_sem_new(&_vka, &io_proxy->backend_started, 0)) {
+    if (sync_sem_new(io_proxy->vka, &io_proxy->backend_started, 0)) {
         ZF_LOGF("Unable to allocate semaphore");
     }
 
