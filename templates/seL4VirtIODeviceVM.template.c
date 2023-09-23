@@ -17,6 +17,8 @@
 
 #define CONNECTION_BASE_ADDRESS PCI_MEM_REGION_ADDR
 
+/*- set vars = { } -*/
+
 /*- set vm_virtio_drivers = configuration[me.name].get('vm_virtio_drivers') -*/
 /*- for drv in vm_virtio_drivers -*/
 extern dataport_caps_handle_t vm/*? drv.id ?*/_iobuf_handle;
@@ -58,6 +60,26 @@ static void init_cross_vm_connections(vm_t *vm, void *cookie)
 DEFINE_MODULE(cross_vm_connections, NULL, init_cross_vm_connections)
 /*- endif -*/
 
+/*- macro vm_virtio_driver_ctrl_base(driver_vm) -*/
+    /*- set guest_virtio_drivers = configuration['vm' ~ driver_vm].get('vm_virtio_drivers') -*/
+    /*- set guest_virtio_devices = configuration['vm' ~ driver_vm].get('vm_virtio_devices') -*/
+    CONNECTION_BASE_ADDRESS
+    /*- if guest_virtio_drivers -*/
+        /*- for guest_drv in guest_virtio_drivers -*/
+        + 4 * (/*? guest_drv.data_size ?*/) /* data plane to driver 'vm/*? guest_drv.id ?*/' */
+        /*- endfor -*/
+    /*- endif -*/
+    /*- set dummy = vars.update({'done': false}) -*/
+    /*- for guest_dev in guest_virtio_devices -*/
+        /*- if me.name == 'vm' ~ guest_dev.id -*/
+            /*- set dummy = vars.update({'done': true}) -*/
+        /*- endif -*/
+        /*- if not vars.done -*/
+        + 4 * (/*? guest_dev.ctrl_size ?*/) /* control plane from device 'vm/*? guest_dev.id ?*/' */
+        /*- endif -*/
+    /*- endfor -*/
+/*- endmacro -*/
+
 const char *append_vm_virtio_device_cmdline(char *buffer)
 {
 /*- if vm_virtio_drivers|length > 0 -*/
@@ -71,7 +93,7 @@ const char *append_vm_virtio_device_cmdline(char *buffer)
     id = /*? drv.id ?*/;
     data_base = /*? drv.data_base ?*/;
     data_size = /*? drv.data_size ?*/;
-    ctrl_base = /*? drv.ctrl_base ?*/;
+    ctrl_base = /*? vm_virtio_driver_ctrl_base(drv.id) ?*/;
     ctrl_size = /*? drv.ctrl_size ?*/;
     /* TODO: safety checks */
     p += strlen(p);

@@ -18,14 +18,12 @@
         int id; \
         string data_base; \
         string data_size; \
-        string ctrl_base; \
         string ctrl_size; \
     } vm_virtio_devices[] = []; \
     attribute { \
         int id; \
         string data_base; \
         string data_size; \
-        string ctrl_base; \
         string ctrl_size; \
     } vm_virtio_drivers[] = []; \
 
@@ -69,7 +67,6 @@
         "id" : _dev, \
         "data_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_BASE), \
         "data_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE), \
-        "ctrl_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_BASE), \
         "ctrl_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_SIZE), \
     },
 
@@ -78,7 +75,6 @@
         "id" : _drv, \
         "data_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_BASE), \
         "data_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_DATA_SIZE), \
-        "ctrl_base" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_BASE), \
         "ctrl_size" : VAR_STRINGIZE(VM##_dev##_VM##_drv##_VIRTIO_CTRL_SIZE), \
     },
 
