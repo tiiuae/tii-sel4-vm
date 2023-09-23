@@ -36,7 +36,6 @@
 #define VM0_VM1_VIRTIO_DATA_SIZE        VM1_RAM_SIZE
 #endif
 
-#define VM0_VM1_VIRTIO_CTRL_BASE        0x60000000
 #define VM0_VM1_VIRTIO_CTRL_SIZE        0x00080000
 
 #if VMSWIOTLB
@@ -47,7 +46,6 @@
 #define VM0_VM2_VIRTIO_DATA_SIZE        VM2_RAM_SIZE
 #endif
 
-#define VM0_VM2_VIRTIO_CTRL_BASE        0x60000000
 #define VM0_VM2_VIRTIO_CTRL_SIZE        0x00080000
 
 assembly {
