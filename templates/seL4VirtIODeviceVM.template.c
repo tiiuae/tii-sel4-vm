@@ -5,19 +5,17 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <sel4vmmplatsupport/drivers/pci.h>
+#include <sel4vmmplatsupport/ioports.h>
+#include <sel4vmmplatsupport/arch/vpci.h>
+
 #include <camkes.h>
 #include <vmlinux.h>
 #include <sel4vm/guest_vm.h>
 
 #include <sel4vmmplatsupport/drivers/cross_vm_connection.h>
 
-#ifdef CONFIG_PLAT_QEMU_ARM_VIRT
-#define CONNECTION_BASE_ADDRESS 0xDF000000
-#elif CONFIG_PLAT_BCM2711
-#define CONNECTION_BASE_ADDRESS 0x60000000
-#else
-#define CONNECTION_BASE_ADDRESS 0x3F000000
-#endif
+#define CONNECTION_BASE_ADDRESS PCI_MEM_REGION_ADDR
 
 /*- set vm_virtio_drivers = configuration[me.name].get('vm_virtio_drivers') -*/
 /*- for drv in vm_virtio_drivers -*/

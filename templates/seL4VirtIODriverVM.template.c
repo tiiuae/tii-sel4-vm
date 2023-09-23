@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <sel4vmmplatsupport/drivers/pci.h>
+#include <sel4vmmplatsupport/ioports.h>
+#include <sel4vmmplatsupport/arch/vpci.h>
+
 #include <camkes.h>
 #include <vmlinux.h>
 
@@ -12,6 +16,8 @@
 
 #include <ioreq.h>
 #include <sel4-qemu.h>
+
+#define CONNECTION_BASE_ADDRESS PCI_MEM_REGION_ADDR
 
 /*- set vm_virtio_devices = configuration[me.name].get('vm_virtio_devices') -*/
 
