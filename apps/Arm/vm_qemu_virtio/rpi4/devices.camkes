@@ -30,7 +30,6 @@
 #define VM0_VM1_VIRTIO_DATA_SIZE        VM1_RAM_SIZE
 #endif
 
-#define VM0_VM1_VIRTIO_CTRL_BASE        0x60000000
 #define VM0_VM1_VIRTIO_CTRL_SIZE        0x00080000
 
 assembly {
