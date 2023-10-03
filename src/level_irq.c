@@ -14,13 +14,10 @@ int level_irq_resample(level_irq_t *level_irq)
         return -1;
     }
 
-    if (!level_irq->resample(level_irq->resample_cookie)) {
-        return 0;
-    }
-
-    int err = vm_inject_irq(level_irq->vcpu, level_irq->irq);
+    int err = vm_set_irq_level(level_irq->vcpu, level_irq->irq, (int)
+			       level_irq->resample(level_irq->resample_cookie));
     if (err) {
-        ZF_LOGE("vm_inject_irq() failed for IRQ %d (%d)", level_irq->irq, err);
+        ZF_LOGE("vm_set_irq_level() failed for IRQ %d (%d)", level_irq->irq, err);
     }
 
     return err;

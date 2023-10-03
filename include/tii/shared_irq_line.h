@@ -6,8 +6,6 @@
 
 #pragma once
 
-#include <tii/level_irq.h>
-
 /***
  * @module shared_irq_line.h
  * This module emulates the level-triggered interrupt line. Such a line can be
@@ -16,7 +14,8 @@
  */
 
 typedef struct shared_irq_line {
-    level_irq_t irq;
+    vm_vcpu_t *vcpu;
+    unsigned int irq;
     uint64_t sources;
 } shared_irq_line_t;
 

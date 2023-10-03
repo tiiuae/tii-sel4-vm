@@ -8,20 +8,24 @@
 
 #include <tii/shared_irq_line.h>
 
-static bool shared_irq_line_resample(void *cookie)
+static void shared_irq_ack(vm_vcpu_t *vcpu, int irq, void *cookie)
 {
-    shared_irq_line_t *line = cookie;
-
-    return line->sources;
 }
 
 int shared_irq_line_init(shared_irq_line_t *line, vm_vcpu_t *vcpu,
                          unsigned int irq)
 {
+    line->vcpu = vcpu;
+    line->irq = irq;
     line->sources = 0;
 
-    return level_irq_init(&line->irq, vcpu, irq, shared_irq_line_resample,
-                          line);
+    int err = vm_register_irq(vcpu, irq, shared_irq_ack, line);
+    if (err) {
+        ZF_LOGE("Failed to register IRQ %d (%d)", irq, err);
+        return -1;
+    }
+
+    return 0;
 }
 
 int shared_irq_line_change(shared_irq_line_t *line, unsigned int source,
@@ -45,5 +49,5 @@ int shared_irq_line_change(shared_irq_line_t *line, unsigned int source,
         return 0;
     }
 
-    return level_irq_resample(&line->irq);
+    return vm_set_irq_level(line->vcpu, line->irq, !!line->sources);
 }
