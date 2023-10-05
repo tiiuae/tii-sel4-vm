@@ -20,7 +20,6 @@
 #include <fdt_custom.h>
 #include <tii/shared_irq_line.h>
 
-#include "sel4-qemu.h"
 #include "trace.h"
 #include "ioreq.h"
 

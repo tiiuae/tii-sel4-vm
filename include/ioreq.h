@@ -18,7 +18,6 @@ typedef uint32_t __u32;
 typedef uint64_t __u64;
 
 #include "sel4_virt_types.h"
-#include "sel4-qemu.h"
 
 #define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
 
