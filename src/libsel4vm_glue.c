@@ -33,7 +33,8 @@
 
 #define INTERRUPT_PCI_INTX_BASE ((VIRTIO_CON_PLAT_INTERRUPT_LINE) + 1)
 
-typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, rpcmsg_t *msg);
+typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, unsigned int op,
+                                 rpcmsg_t *msg);
 
 extern vka_t _vka;
 
@@ -90,19 +91,14 @@ static inline int pci_map_irq(pcidev_t *pcidev)
     return pci_swizzle(pcidev->dev_id, 0);
 }
 
-static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
-                                     uintptr_t offset, size_t size,
-                                     uint64_t value)
+static inline
+seL4_Word pci_cfg_ioreq_native(pcidev_t *pcidev, unsigned int dir,
+                               uintptr_t offset, size_t size, seL4_Word value)
 {
-    int slot = ioreq_start(pcidev->io_proxy, VCPU_NONE, AS_PCIDEV(pcidev->backend_pcidev_id),
-                           dir, offset, size, value);
-    assert(ioreq_slot_valid(slot));
-
-    io_proxy_backend_notify(pcidev->io_proxy);
-
-    int err = ioreq_wait(&value);
+    int err = ioreq_native(pcidev->io_proxy, AS_PCIDEV(pcidev->backend_pcidev_id),
+                           dir, offset, size, &value);
     if (err) {
-        ZF_LOGE("ioreq_wait() failed");
+        ZF_LOGE("ioreq_native() failed (%d)", err);
         return 0;
     }
 
@@ -110,9 +106,9 @@ static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
 }
 
 #define pci_cfg_read(_pcidev, _offset, _sz) \
-    pci_cfg_start(_pcidev, SEL4_IO_DIR_READ, _offset, _sz, 0)
+    pci_cfg_ioreq_native(_pcidev, SEL4_IO_DIR_READ, _offset, _sz, 0)
 #define pci_cfg_write(_pcidev, _offset, _sz, _val) \
-    pci_cfg_start(_pcidev, SEL4_IO_DIR_WRITE, _offset, _sz, _val)
+    pci_cfg_ioreq_native(_pcidev, SEL4_IO_DIR_WRITE, _offset, _sz, _val)
 
 static uint8_t pci_cfg_read8(void *cookie, vmm_pci_address_t addr,
                              unsigned int offset)
@@ -197,7 +193,8 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
     pcidev->backend_pcidev_id = backend_pcidev_id;
     pcidev->io_proxy = io_proxy;
 
-    ZF_LOGI("Registering PCI device %u", pcidev->dev_id);
+    ZF_LOGI("Registering PCI device %u (remote %u:%u)", pcidev->idx,
+            pcidev->backend_id, pcidev->backend_pcidev_index);
 
     err = fdt_generate_virtio_node(io_proxy->dtb_buf, pcidev->dev_id,
                                    io_proxy->data_base, io_proxy->data_size);
@@ -242,59 +239,66 @@ static int pcidev_intx_set(unsigned int backend_id,
                                   pcidev->dev_id, level);
 }
 
-static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
-{
-    int err = 0;
+#define RPCMSG_RC_ERROR -1
+#define RPCMSG_RC_NONE 0
+#define RPCMSG_RC_HANDLED 1
 
-    switch (QEMU_OP(msg->mr0)) {
-    case QEMU_OP_SET_IRQ:
+static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
+{
+    int err;
+
+    switch (op) {
+    case RPC_MR0_OP_SET_IRQ:
         err = pcidev_intx_set(io_proxy->backend_id, msg->mr1, true);
         break;
-    case QEMU_OP_CLR_IRQ:
+    case RPC_MR0_OP_CLR_IRQ:
         err = pcidev_intx_set(io_proxy->backend_id, msg->mr1, false);
         break;
-    case QEMU_OP_REGISTER_PCI_DEV:
+    case RPC_MR0_OP_REGISTER_PCI_DEV:
         err = pcidev_register(pci, io_proxy, msg->mr1);
         break;
     default:
-        return 0;
+        return RPCMSG_RC_NONE;
     }
 
     if (err) {
-        return -1;
+        return RPCMSG_RC_ERROR;
     }
 
-    return 1;
+    return RPCMSG_RC_HANDLED;
 }
 
 /**************************** PCI code ends here ****************************/
 
-static int handle_mmio(io_proxy_t *io_proxy, rpcmsg_t *msg)
+static int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
-    if (QEMU_OP(msg->mr0) != QEMU_OP_IO_HANDLED) {
-        return 0;
+    if (op != RPC_MR0_OP_MMIO) {
+        return RPCMSG_RC_NONE;
     }
 
-    int err = ioreq_finish(io_proxy, msg->mr1);
+    unsigned int slot = BIT_FIELD_GET(msg->mr0, RPC_MR0_MMIO_SLOT);
+    seL4_Word data = msg->mr2;
+
+    int err = ioreq_finish(io_proxy, slot, data);
     if (err) {
-        return -1;
+        return RPCMSG_RC_ERROR;
     }
 
-    return 1;
+    return RPCMSG_RC_HANDLED;
 }
 
-static int handle_control(io_proxy_t *io_proxy, rpcmsg_t *msg)
+static int handle_control(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
-    switch (QEMU_OP(msg->mr0)) {
-    case QEMU_OP_START_VM:
-        io_proxy->status = 1;
+    switch (op) {
+    case RPC_MR0_OP_NOTIFY_STATUS:
+        io_proxy->status = msg->mr1;
         sync_sem_post(&io_proxy->status_changed);
         break;
     default:
-        return 0;
+        return RPCMSG_RC_NONE;
     }
 
-    return 1;
+    return RPCMSG_RC_HANDLED;
 }
 
 static rpc_callback_fn_t rpc_callbacks[] = {
@@ -306,24 +310,39 @@ static rpc_callback_fn_t rpc_callbacks[] = {
 
 int rpc_run(io_proxy_t *io_proxy)
 {
-    rpcmsg_queue_t *q = io_proxy->rx_queue;
+    rpcmsg_t *msg;
 
-    while (!rpcmsg_queue_empty(q)) {
-        rpcmsg_t *msg = rpcmsg_queue_head(q);
-        if (!msg) {
+    while ((msg = rpcmsg_queue_head(io_proxy->rpc.rx_queue)) != NULL) {
+        unsigned int state = BIT_FIELD_GET(msg->mr0, RPC_MR0_STATE);
+
+        if (state == RPC_MR0_STATE_COMPLETE) {
+            rpc_assert(!"logic error");
+        } else if (state == RPC_MR0_STATE_RESERVED) {
+            /* emu side is crafting message, let's continue later */
+            break;
+        }
+
+        int rc = RPCMSG_RC_NONE;
+        for (rpc_callback_fn_t *cb = rpc_callbacks;
+             rc == RPCMSG_RC_NONE && *cb; cb++) {
+            rc = (*cb)(io_proxy, BIT_FIELD_GET(msg->mr0, RPC_MR0_OP), msg);
+        }
+
+        if (rc == RPCMSG_RC_ERROR) {
             return -1;
         }
-        int rc = 0;
-        for (rpc_callback_fn_t *cb = rpc_callbacks; !rc && *cb; cb++) {
-            rc = (*cb)(io_proxy, msg);
+
+        if (rc == RPCMSG_RC_NONE) {
+            if (BIT_FIELD_GET(msg->mr0, RPC_MR0_STATE) != RPC_MR0_STATE_PROCESSING) {
+                ZF_LOGE("Unknown RPC message %u", BIT_FIELD_GET(msg->mr0, RPC_MR0_OP));
+                return -1;
+            }
+            /* try again later */
+            return 0;
         }
-        if (rc == -1) {
-            return -1;
-        }
-        if (rc == 0) {
-            ZF_LOGW("Unknown RPC message %u", QEMU_OP(msg->mr0));
-        }
-        rpcmsg_queue_advance_head(q);
+
+        msg->mr0 = BIT_FIELD_SET(msg->mr0, RPC_MR0_STATE, RPC_MR0_STATE_COMPLETE);
+        rpcmsg_queue_advance_head(io_proxy->rpc.rx_queue);
     }
 
     return 0;
@@ -336,11 +355,11 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
     io_proxy_t *io_proxy = cookie;
 
     unsigned int dir = SEL4_IO_DIR_READ;
-    uint64_t value = 0;
+    seL4_Word value = 0;
 
     if (!is_vcpu_read_fault(vcpu)) {
         seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-        uint64_t mask = get_vcpu_fault_data_mask(vcpu) >> s;
+        seL4_Word mask = get_vcpu_fault_data_mask(vcpu) >> s;
         value = get_vcpu_fault_data(vcpu) & mask;
         dir = SEL4_IO_DIR_WRITE;
     }
@@ -351,9 +370,8 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
         return FAULT_ERROR;
     }
 
-    io_proxy_backend_notify(io_proxy);
+    /* ioreq_start() flushes queue from VMM to device, we do not need to */
 
-    /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
 }
 
@@ -409,13 +427,7 @@ int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
         return -1;
     }
 
-    /* load_linux() eventually calls fdt_generate_vpci_node(), which blocks
-     * unless backend is already running. Therefore we need to listen to start
-     * signal here before proceeding to load_linux() in VM_Arm.
-     */
-    ZF_LOGI("waiting for PCI backend");
-    io_proxy_wait_for_backend(io_proxy);
-    ZF_LOGI("PCI backend up, continuing");
+    io_proxy_wait_until_device_ready(io_proxy);
 
     return 0;
 }

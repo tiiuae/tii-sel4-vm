@@ -51,7 +51,7 @@ static uintptr_t vm/*? dev.id ?*/_iobuf_page_get(io_proxy_t *io_proxy, unsigned 
     return addr;
 }
 
-static void vm/*? dev.id ?*/_backend_notify(io_proxy_t *io_proxy)
+static void vm/*? dev.id ?*/_notify(void *cookie)
 {
     vm/*? dev.id ?*/_ntfn_send_emit();
 }
@@ -84,7 +84,11 @@ io_proxy_t vm/*? dev.id ?*/_io_proxy = {
     .run = vm/*? dev.id ?*/_io_proxy_run,
     .backend_id = /*? dev.id ?*/,
     .iobuf_page_get = vm/*? dev.id ?*/_iobuf_page_get,
-    .backend_notify = vm/*? dev.id ?*/_backend_notify,
+    .rpc = {
+        /* queue addresses need to be filled in run time */
+        .doorbell = vm/*? dev.id ?*/_notify,
+        .doorbell_cookie = &vm/*? dev.id ?*/_io_proxy,
+    },
 };
 
 DEFINE_MODULE(vm/*? dev.id ?*/_io_proxy, &vm/*? dev.id ?*/_io_proxy, camkes_io_proxy_module_init)
