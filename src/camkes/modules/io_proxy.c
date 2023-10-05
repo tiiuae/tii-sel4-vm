@@ -10,7 +10,6 @@
 #include <tii/fdt.h>
 #include <tii/io_proxy.h>
 #include <tii/camkes/io_proxy.h>
-#include <sel4-qemu.h>
 #include <tii/guest.h>
 
 extern vka_t _vka; /* from CAmkES VM */

@@ -13,8 +13,6 @@
 #include <tii/camkes/io_proxy.h>
 #include <tii/fdt.h>
 
-#include <sel4-qemu.h>
-
 /*- set vm_virtio_devices = configuration[me.name].get('vm_virtio_devices') -*/
 
 /*- for dev in vm_virtio_devices -*/

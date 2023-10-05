@@ -20,7 +20,6 @@
 #include <tii/fdt.h>
 #include <tii/shared_irq_line.h>
 
-#include "sel4-qemu.h"
 #include <tii/trace.h>
 #include <tii/io_proxy.h>
 #include <tii/pci.h>
