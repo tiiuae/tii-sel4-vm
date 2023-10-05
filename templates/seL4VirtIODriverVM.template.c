@@ -15,7 +15,6 @@
 #include <tii/camkes/io_proxy.h>
 
 #include <ioreq.h>
-#include <sel4-qemu.h>
 
 #define CONNECTION_BASE_ADDRESS PCI_MEM_REGION_ADDR
 
