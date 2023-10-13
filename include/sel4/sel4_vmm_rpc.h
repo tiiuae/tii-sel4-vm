@@ -20,9 +20,7 @@
 #define __maybe_unused __attribute__ ((unused))
 #endif
 
-#if !defined(SEL4_VMM)
 typedef unsigned long seL4_Word;
-#endif
 
 #define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
 #define atomic_store_release(ptr, i)  __atomic_store_n(ptr, i, __ATOMIC_RELEASE)
@@ -30,7 +28,7 @@ typedef unsigned long seL4_Word;
 #if defined(__KERNEL__)
 #define rpc_assert(_cond) BUG_ON(!(_cond))
 #else
-#define rpc_assert assert
+#define rpc_assert(_cond) assert(_cond)
 #endif
 
 #define IOBUF_PAGE_DRIVER_RX    2
@@ -71,6 +69,11 @@ typedef unsigned long seL4_Word;
 #define RPC_MR0_OP_WIDTH                6
 #define RPC_MR0_OP_SHIFT                0
 
+#define RPC_MR0_COMMON_WIDTH            (RPC_MR0_OP_WIDTH + RPC_MR0_OP_SHIFT)
+#define RPC_MR0_COMMON_SHIFT            0
+
+/************************** defines for RPC_MR0_OP ***************************/
+
 /* start/finish MMIO access */
 #define RPC_MR0_OP_MMIO                 0
 
@@ -79,6 +82,43 @@ typedef unsigned long seL4_Word;
 #define RPC_MR0_OP_CLR_IRQ              17
 #define RPC_MR0_OP_START_VM             18
 #define RPC_MR0_OP_REGISTER_PCI_DEV     19
+
+/************************ defines for RPC_MR0_OP_MMIO ************************/
+/*
+ *     33222222222211111111110000000000
+ *     10987654321098765432109876543210
+ *
+ * MR0 .......LLLLAAAAAAAADSSSSSS......
+ * MR1             address
+ * MR2               data
+ *
+ * MR0 fields:
+ *
+ *   L is MMIO request length
+ *   A is address space identifier (all ones is global, otherwise PCI device)
+ *   D is direction (read=0, write=1)
+ *   S is slot number (used internally at driver side)
+ *
+ * Write acknowledgements have meaningful value for slot field only. For read
+ * requests, the data field is also defined.
+ */
+
+#define RPC_MR0_MMIO_SLOT_WIDTH         6
+#define RPC_MR0_MMIO_SLOT_SHIFT         (RPC_MR0_COMMON_WIDTH + RPC_MR0_COMMON_SHIFT)
+
+#define RPC_MR0_MMIO_DIRECTION_WIDTH    1
+#define RPC_MR0_MMIO_DIRECTION_SHIFT    (RPC_MR0_MMIO_SLOT_WIDTH + RPC_MR0_MMIO_SLOT_SHIFT)
+
+#define RPC_MR0_MMIO_DIRECTION_READ     0
+#define RPC_MR0_MMIO_DIRECTION_WRITE    1
+
+#define RPC_MR0_MMIO_ADDR_SPACE_WIDTH   8
+#define RPC_MR0_MMIO_ADDR_SPACE_SHIFT   (RPC_MR0_MMIO_DIRECTION_WIDTH + RPC_MR0_MMIO_DIRECTION_SHIFT)
+
+#define RPC_MR0_MMIO_LENGTH_WIDTH       4
+#define RPC_MR0_MMIO_LENGTH_SHIFT       (RPC_MR0_MMIO_ADDR_SPACE_WIDTH + RPC_MR0_MMIO_ADDR_SPACE_SHIFT)
+
+/*****************************************************************************/
 
 #define RPCMSG_BUFFER_SIZE  32
 
@@ -207,6 +247,73 @@ static inline sel4_rpc_t *rpcmsg_compose(sel4_rpc_t *rpc, unsigned int op,
 
     return rpc;
 }
+
+/******************** message constructors for both sides ********************/
+
+static inline
+sel4_rpc_t *ntfn_status(sel4_rpc_t *rpc, unsigned int status)
+{
+    return rpcmsg_compose(rpc, RPC_MR0_OP_NOTIFY_STATUS, 0, status, 0);
+}
+
+/************ message constructors for device (sending to driver) ************/
+
+static inline
+sel4_rpc_t *driver_ntfn_device_status(sel4_rpc_t *rpc, unsigned int status)
+{
+    return ntfn_status(rpc, status);
+}
+
+static inline
+sel4_rpc_t *driver_req_create_vpci_device(sel4_rpc_t *rpc, seL4_Word pcidev)
+{
+    return rpcmsg_compose(rpc, RPC_MR0_OP_REGISTER_PCI_DEV, 0, pcidev, 0);
+}
+
+static inline
+sel4_rpc_t *driver_req_set_irqline(sel4_rpc_t *rpc, seL4_Word irq, unsigned int state)
+{
+    return rpcmsg_compose(rpc, RPC_MR0_OP_SET_IRQ, 0, irq, state);
+}
+
+static inline
+sel4_rpc_t *driver_ack_mmio_finish(sel4_rpc_t *rpc, unsigned int slot, seL4_Word data)
+{
+    seL4_Word mr0 = 0;
+
+    mr0 = BIT_FIELD_SET(mr0, RPC_MR0_MMIO_SLOT, slot);
+
+    return rpcmsg_compose(rpc, RPC_MR0_OP_MMIO, mr0, 0, data);
+}
+
+/************ message constructors for driver (sending to device) ************/
+
+static inline
+sel4_rpc_t *device_ntfn_driver_status(sel4_rpc_t *rpc, unsigned int status)
+{
+    return ntfn_status(rpc, status);
+}
+
+static inline
+sel4_rpc_t *device_req_mmio_start(sel4_rpc_t *rpc, unsigned int direction,
+                                  unsigned int addr_space, unsigned int slot,
+                                  seL4_Word addr, seL4_Word len, seL4_Word data)
+{
+    seL4_Word mr0 = 0;
+    seL4_Word mr1 = 0;
+    seL4_Word mr2 = 0;
+
+    mr0 = BIT_FIELD_SET(mr0, RPC_MR0_MMIO_DIRECTION, direction);
+    mr0 = BIT_FIELD_SET(mr0, RPC_MR0_MMIO_ADDR_SPACE, addr_space);
+    mr0 = BIT_FIELD_SET(mr0, RPC_MR0_MMIO_LENGTH, len);
+    mr0 = BIT_FIELD_SET(mr0, RPC_MR0_MMIO_SLOT, slot);
+    mr1 = addr;
+    mr2 = data;
+
+    return rpcmsg_compose(rpc, RPC_MR0_OP_MMIO, mr0, mr1, mr2);
+}
+
+/*****************************************************************************/
 
 static inline int sel4_rpc_init(sel4_rpc_t *rpc, rpcmsg_queue_t *rx,
                                 rpcmsg_queue_t *tx,
