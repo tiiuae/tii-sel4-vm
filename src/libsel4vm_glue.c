@@ -29,7 +29,7 @@
 
 #include <virtioarm/virtio_plat.h>
 
-#define INTERRUPT_PCI_INTX_BASE (VIRTIO_CON_PLAT_INTERRUPT_LINE)
+#define INTERRUPT_PCI_INTX_BASE ((VIRTIO_CON_PLAT_INTERRUPT_LINE) + 1)
 
 typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, unsigned int op,
                                  rpcmsg_t *msg);
