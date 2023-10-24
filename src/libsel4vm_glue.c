@@ -31,7 +31,7 @@
 #define PCI_NUM_SLOTS   (32)
 #define PCI_NUM_PINS    (4)
 
-#define INTERRUPT_PCI_INTX_BASE (VIRTIO_CON_PLAT_INTERRUPT_LINE)
+#define INTERRUPT_PCI_INTX_BASE ((VIRTIO_CON_PLAT_INTERRUPT_LINE) + 1)
 
 typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, rpcmsg_t *msg);
 
