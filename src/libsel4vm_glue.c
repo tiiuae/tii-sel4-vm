@@ -239,10 +239,6 @@ static int pcidev_intx_set(unsigned int backend_id,
                                   pcidev->dev_id, level);
 }
 
-#define RPCMSG_RC_ERROR -1
-#define RPCMSG_RC_NONE 0
-#define RPCMSG_RC_HANDLED 1
-
 static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
     int err;
@@ -269,23 +265,6 @@ static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 }
 
 /**************************** PCI code ends here ****************************/
-
-static int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
-{
-    if (op != RPC_MR0_OP_MMIO) {
-        return RPCMSG_RC_NONE;
-    }
-
-    unsigned int slot = BIT_FIELD_GET(msg->mr0, RPC_MR0_MMIO_SLOT);
-    seL4_Word data = msg->mr2;
-
-    int err = ioreq_finish(io_proxy, slot, data);
-    if (err) {
-        return RPCMSG_RC_ERROR;
-    }
-
-    return RPCMSG_RC_HANDLED;
-}
 
 static int handle_control(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
