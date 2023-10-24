@@ -27,8 +27,8 @@ typedef struct ioack {
 } ioack_t;
 
 typedef struct io_proxy {
-    sync_sem_t backend_started;
-    int ok_to_run;
+    sync_sem_t status_changed;
+    unsigned int status;
     struct sel4_iohandler_buffer *iobuf;
     rpcmsg_queue_t *rx_queue;
     void (*backend_notify)(struct io_proxy *io_proxy);

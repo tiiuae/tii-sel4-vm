@@ -235,8 +235,8 @@ static int handle_control(io_proxy_t *io_proxy, rpcmsg_t *msg)
 {
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_START_VM:
-        io_proxy->ok_to_run = 1;
-        sync_sem_post(&io_proxy->backend_started);
+        io_proxy->status = 1;
+        sync_sem_post(&io_proxy->status_changed);
         break;
     default:
         return 0;

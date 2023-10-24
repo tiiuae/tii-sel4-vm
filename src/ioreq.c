@@ -20,15 +20,15 @@
 #define ioreq_state_complete(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_COMPLETE)
 #define ioreq_state_free(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_FREE)
 
-typedef struct ioreq_sync {
+typedef struct ioreq_native {
     bool initialized;
     sync_sem_t handoff;
     uint64_t value;
-} ioreq_sync_t;
+} ioreq_native_t;
 
-static __thread ioreq_sync_t ioreq_sync;
+static __thread ioreq_native_t ioreq_native_data;
 
-static ioreq_sync_t *ioreq_sync_prepare(vka_t *vka);
+static ioreq_native_t *ioreq_sync_prepare(vka_t *vka);
 static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie);
 static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie);
 
@@ -130,21 +130,21 @@ static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie)
     return 0;
 }
 
-static ioreq_sync_t *ioreq_sync_prepare(vka_t *vka)
+static ioreq_native_t *ioreq_sync_prepare(vka_t *vka)
 {
-    if (!ioreq_sync.initialized) {
-        if (sync_sem_new(vka, &ioreq_sync.handoff, 0)) {
+    if (!ioreq_native_data.initialized) {
+        if (sync_sem_new(vka, &ioreq_native_data.handoff, 0)) {
             ZF_LOGF("Unable to allocate handoff semaphore");
         }
-        ioreq_sync.initialized = true;
+        ioreq_native_data.initialized = true;
     }
 
-    return &ioreq_sync;
+    return &ioreq_native_data;
 }
 
 static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie)
 {
-    ioreq_sync_t *sync = cookie;
+    ioreq_native_t *sync = cookie;
 
     uint32_t data = 0;
 
@@ -160,10 +160,10 @@ static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie)
 
 int ioreq_wait(uint64_t *value)
 {
-    sync_sem_wait(&ioreq_sync.handoff);
+    sync_sem_wait(&ioreq_native_data.handoff);
 
     if (value) {
-        *value = ioreq_sync.value;
+        *value = ioreq_native_data.value;
     }
 
     return 0;
@@ -171,15 +171,15 @@ int ioreq_wait(uint64_t *value)
 
 void io_proxy_wait_for_backend(io_proxy_t *io_proxy)
 {
-    volatile int *ok_to_run = &io_proxy->ok_to_run;
-    while (!*ok_to_run) {
-        sync_sem_wait(&io_proxy->backend_started);
+    volatile unsigned int *status = &io_proxy->status;
+    while (!*status) {
+        sync_sem_wait(&io_proxy->status_changed);
     };
 }
 
 void io_proxy_init(io_proxy_t *io_proxy)
 {
-    if (sync_sem_new(io_proxy->vka, &io_proxy->backend_started, 0)) {
+    if (sync_sem_new(io_proxy->vka, &io_proxy->status_changed, 0)) {
         ZF_LOGF("Unable to allocate semaphore");
     }
 
