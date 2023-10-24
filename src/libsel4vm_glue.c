@@ -93,7 +93,7 @@ static uint8_t pci_cfg_read8(void *cookie, vmm_pci_address_t addr,
                              unsigned int offset)
 {
     if (offset == 0x3c) {
-        return VIRTIO_PLAT_INTERRUPT_LINE;
+        return VIRTIO_PLAT_INTERRUPT_LINE + 1;
     }
     return pci_cfg_read(cookie, offset, 1);
 }
@@ -311,7 +311,7 @@ static int irq_init(vm_t *vm)
 
     if (!done) {
         int err = shared_irq_line_init(&irq_line, vm->vcpus[BOOT_VCPU],
-                                       VIRTIO_PLAT_INTERRUPT_LINE);
+                                       VIRTIO_PLAT_INTERRUPT_LINE + 1);
 
         if (!err) {
             done = true;
