@@ -29,6 +29,7 @@ static int ioack_vcpu_read(seL4_Word data, void *cookie);
 static int ioack_vcpu_write(seL4_Word data, void *cookie);
 static int ioack_native_read(seL4_Word data, void *cookie);
 static int ioack_native_write(seL4_Word data, void *cookie);
+static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data);
 
 int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
                 unsigned int direction, uintptr_t addr, size_t size,
@@ -59,7 +60,7 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
                                                    size, data));
 }
 
-int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data)
+static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data)
 {
     ioack_t *ioack = &io_proxy->ioacks[slot];
 
@@ -195,4 +196,21 @@ int io_proxy_init(io_proxy_t *io_proxy)
     }
 
     return 0;
+}
+
+int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
+{
+    if (op != RPC_MR0_OP_MMIO) {
+        return RPCMSG_RC_NONE;
+    }
+
+    unsigned int slot = BIT_FIELD_GET(msg->mr0, RPC_MR0_MMIO_SLOT);
+    seL4_Word data = msg->mr2;
+
+    int err = ioreq_finish(io_proxy, slot, data);
+    if (err) {
+        return RPCMSG_RC_ERROR;
+    }
+
+    return RPCMSG_RC_HANDLED;
 }

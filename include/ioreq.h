@@ -10,6 +10,10 @@
 #include <sel4vm/guest_vm.h>
 #include <sel4vmmplatsupport/ioports.h>
 
+#define RPCMSG_RC_ERROR -1
+#define RPCMSG_RC_NONE 0
+#define RPCMSG_RC_HANDLED 1
+
 #define VCPU_NONE NULL
 
 typedef uint8_t __u8;
@@ -55,8 +59,6 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
                 unsigned int direction, uintptr_t addr, size_t size,
                 seL4_Word data);
 
-int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data);
-
 int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
                  unsigned int direction, uintptr_t offset, size_t len,
                  uint64_t *value);
@@ -68,3 +70,5 @@ int io_proxy_init(io_proxy_t *io_proxy);
 int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy);
 
 int rpc_run(io_proxy_t *io_proxy);
+
+int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg);
