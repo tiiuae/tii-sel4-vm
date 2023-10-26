@@ -6,6 +6,8 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
+#include <utils/util.h>
+
 #include <fdt_custom.h>
 
 #define USB_PCI_NODE_PATH   "/scb/pcie@7d500000/pci@0,0"
@@ -75,7 +77,7 @@ static int fdt_generate_usb_node(void *fdt)
     return 0;
 }
 
-int fdt_plat_customize(vm_t *vm, void *dtb_buf)
+int fdt_plat_customize(void *cookie, void *dtb_buf)
 {
     int err;
 

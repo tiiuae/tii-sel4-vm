@@ -6,7 +6,10 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
+#include <inttypes.h>
+
 #include <libfdt.h>
+#include <utils/util.h>
 
 #include <fdt_custom.h>
 
@@ -138,7 +141,7 @@ static uint32_t fdt_get_swiotlb_phandle(void *fdt, uintptr_t data_base,
     return phandle;
 }
 
-int fdt_generate_pci_node(void *fdt, const char *name, uint32_t dev)
+static int fdt_generate_pci_node(void *fdt, const char *name, uint32_t slot)
 {
     int root_offset = fdt_path_offset(fdt, "/pci");
     if (root_offset < 0) {
@@ -151,7 +154,7 @@ int fdt_generate_pci_node(void *fdt, const char *name, uint32_t dev)
         return this;
     }
 
-    uint32_t devfn = PCI_DEVFN(dev, 0);
+    uint32_t devfn = PCI_DEVFN(slot, 0);
     int err = fdt_appendprop_u32(fdt, this, "reg", (devfn & 0xff) << 8);
     for (int j = 0; !err && j < 4; j++) {
         err = fdt_appendprop_u32(fdt, this, "reg", 0);
@@ -164,11 +167,11 @@ int fdt_generate_pci_node(void *fdt, const char *name, uint32_t dev)
     return this;
 }
 
-int fdt_generate_virtio_node(void *fdt, unsigned int idx, uintptr_t data_base,
+int fdt_generate_virtio_node(void *fdt, unsigned int slot, uintptr_t data_base,
                              size_t data_size)
 {
     char name[64];
-    sprintf(name, "virtio%d", idx);
+    sprintf(name, "virtio%d", slot);
 
     if (guest_ram_base == data_base && guest_ram_size == data_size) {
         /* SWIOTLB not used */
@@ -182,7 +185,7 @@ int fdt_generate_virtio_node(void *fdt, unsigned int idx, uintptr_t data_base,
         return -1;
     }
 
-    int this = fdt_generate_pci_node(fdt, name, idx);
+    int this = fdt_generate_pci_node(fdt, name, slot);
     if (this <= 0) {
         ZF_LOGE("fdt_generate_pci_node() failed (%d)", this);
         return -1;
@@ -194,5 +197,10 @@ int fdt_generate_virtio_node(void *fdt, unsigned int idx, uintptr_t data_base,
         return err;
     }
 
+    return 0;
+}
+
+int WEAK fdt_plat_customize(void *cookie, void *dtb_buf)
+{
     return 0;
 }

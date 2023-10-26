@@ -8,11 +8,6 @@
 
 #include <fdt_custom.h>
 
-int WEAK fdt_plat_customize(vm_t *vm, void *dtb_buf)
-{
-    return 0;
-}
-
 static void fdt_plat_customize_init(vm_t *vm, void *cookie)
 {
     int err = fdt_plat_customize(vm, cookie);
