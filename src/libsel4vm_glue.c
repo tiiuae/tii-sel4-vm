@@ -58,6 +58,9 @@ extern vmm_pci_space_t *pci;
 
 static shared_irq_line_t pci_intx[PCI_NUM_PINS];
 
+static int ioack_vcpu_read(seL4_Word data, void *cookie);
+static int ioack_vcpu_write(seL4_Word data, void *cookie);
+
 /************************ main declarations end here ************************/
 
 /*********************** PCI declarations begin here ************************/
@@ -327,6 +330,26 @@ int rpc_run(io_proxy_t *io_proxy)
     return 0;
 }
 
+static int ioack_vcpu_read(seL4_Word data, void *cookie)
+{
+    vm_vcpu_t *vcpu = cookie;
+
+    seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
+    set_vcpu_fault_data(vcpu, data << s);
+    advance_vcpu_fault(vcpu);
+
+    return 0;
+}
+
+static int ioack_vcpu_write(seL4_Word data, void *cookie)
+{
+    vm_vcpu_t *vcpu = cookie;
+
+    advance_vcpu_fault(vcpu);
+
+    return 0;
+}
+
 static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
                                                 uintptr_t paddr, size_t len,
                                                 void *cookie)
@@ -343,7 +366,9 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
         dir = SEL4_IO_DIR_WRITE;
     }
 
-    int err = ioreq_start(io_proxy, vcpu, AS_GLOBAL, dir, paddr, len, value);
+    int err = ioreq_start(io_proxy, vcpu->vcpu_id, ioack_vcpu_read,
+                          ioack_vcpu_write, vcpu, AS_GLOBAL, dir, paddr, len,
+                          value);
     if (err) {
         ZF_LOGE("ioreq_start() failed (%d)", err);
         return FAULT_ERROR;

@@ -56,7 +56,8 @@ static uintptr_t io_proxy_iobuf_page(io_proxy_t *io_proxy, unsigned int page)
     return io_proxy->iobuf_page_get(io_proxy, page);
 }
 
-int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
+int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
+                ioack_fn_t ioack_write, void *cookie, uint32_t addr_space,
                 unsigned int direction, uintptr_t addr, size_t size,
                 seL4_Word data);
 

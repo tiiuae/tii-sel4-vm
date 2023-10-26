@@ -6,8 +6,6 @@
 
 #include <sync/sem.h>
 
-#include <sel4vm/guest_vcpu_fault.h>
-
 #include "ioreq.h"
 
 #define mb() __sync_synchronize()
@@ -24,36 +22,24 @@ static __thread ioreq_native_t ioreq_native_data;
 
 static int free_native_slot = SEL4_MMIO_NATIVE_BASE;
 
-static int ioreq_slot(io_proxy_t *io_proxy, vm_vcpu_t *vcpu);
-static int ioack_vcpu_read(seL4_Word data, void *cookie);
-static int ioack_vcpu_write(seL4_Word data, void *cookie);
+static int ioreq_native_slot(io_proxy_t *io_proxy);
 static int ioack_native_read(seL4_Word data, void *cookie);
 static int ioack_native_write(seL4_Word data, void *cookie);
 static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data);
 
-int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
+int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
+                ioack_fn_t ioack_write, void *cookie, uint32_t addr_space,
                 unsigned int direction, uintptr_t addr, size_t size,
                 seL4_Word data)
 {
     assert(io_proxy && size >= 0 && size <= sizeof(data));
 
-    /* ioreq_slot() initializes thread-specific ioreq_native_data if needed */
-    int slot = ioreq_slot(io_proxy, vcpu);
-    if (slot < 0) {
-        return -1;
-    }
-
     ioack_t *ioack = &io_proxy->ioacks[slot];
 
     rpc_assert(ioack->callback == NULL);
 
-    if (vcpu) {
-        ioack->callback = (direction == RPC_MR0_MMIO_DIRECTION_READ) ? ioack_vcpu_read : ioack_vcpu_write;
-        ioack->cookie = vcpu;
-    } else {
-        ioack->callback = (direction == RPC_MR0_MMIO_DIRECTION_READ) ? ioack_native_read : ioack_native_write;
-        ioack->cookie = &ioreq_native_data;
-    }
+    ioack->callback = (direction == RPC_MR0_MMIO_DIRECTION_READ) ? ioack_read : ioack_write;
+    ioack->cookie = cookie;
 
     return sel4_rpc_doorbell(device_req_mmio_start(&io_proxy->rpc, direction,
                                                    addr_space, slot, addr,
@@ -73,52 +59,28 @@ static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data)
     return rc;
 }
 
-static int ioack_vcpu_read(seL4_Word data, void *cookie)
+static int ioreq_native_slot(io_proxy_t *io_proxy)
 {
-    vm_vcpu_t *vcpu = cookie;
-
-    seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-    set_vcpu_fault_data(vcpu, data << s);
-    advance_vcpu_fault(vcpu);
-
-    return 0;
-}
-
-static int ioack_vcpu_write(seL4_Word data, void *cookie)
-{
-    vm_vcpu_t *vcpu = cookie;
-
-    advance_vcpu_fault(vcpu);
-
-    return 0;
-}
-
-static int ioreq_slot(io_proxy_t *io_proxy, vm_vcpu_t *vcpu)
-{
-    if (vcpu) {
-        return vcpu->vcpu_id;
-    }
-
     /* ioreq_native_data is in thread local storage, hence a unique ID
      * is returned for each native thread calling this.
      */
     if (!ioreq_native_data.slot) {
-        int err;
-
-        err = sync_sem_new(io_proxy->vka, &ioreq_native_data.handoff, 0);
-        if (err) {
-            ZF_LOGE("sync_sem_new() failed (%d)", err);
-            return -1;
-        }
-
-        if (free_native_slot >= ARRAY_SIZE(io_proxy->ioacks)) {
-            ZF_LOGE("too many native threads");
-            return -1;
-        }
-
-        /* TODO: atomic read + increment? */
-        ioreq_native_data.slot = free_native_slot++;
+        return ioreq_native_data.slot;
     }
+
+    int err = sync_sem_new(io_proxy->vka, &ioreq_native_data.handoff, 0);
+    if (err) {
+        ZF_LOGE("sync_sem_new() failed (%d)", err);
+        return -1;
+    }
+
+    if (free_native_slot >= ARRAY_SIZE(io_proxy->ioacks)) {
+        ZF_LOGE("too many native threads");
+        return -1;
+    }
+
+    /* TODO: atomic read + increment? */
+    ioreq_native_data.slot = free_native_slot++;
 
     return ioreq_native_data.slot;
 }
@@ -158,10 +120,15 @@ int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
                  unsigned int direction, uintptr_t addr, size_t size,
                  uint64_t *value)
 {
-    int err;
+    int slot = ioreq_native_slot(io_proxy);
+    if (slot < 0) {
+        ZF_LOGE("ioreq_native_slot() failed");
+        return -1;
+    }
 
-    err = ioreq_start(io_proxy, VCPU_NONE, addr_space, direction, addr, size,
-                      *value);
+    int err = ioreq_start(io_proxy, slot, ioack_native_read,
+                          ioack_native_write, &ioreq_native_data, addr_space,
+                          direction, addr, size, *value);
     if (err) {
         ZF_LOGE("ioreq_start() failed (%d)", err);
         return -1;
