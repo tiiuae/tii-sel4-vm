@@ -31,8 +31,6 @@
 
 #define PCI_NUM_SLOTS   (32)
 #define PCI_NUM_PINS    (4)
-/* Bridge consumes one slot */
-#define PCI_NUM_AVAIL_DEVICES   (PCI_NUM_SLOTS - 1)
 
 #define INTERRUPT_PCI_INTX_BASE (VIRTIO_CON_PLAT_INTERRUPT_LINE)
 
@@ -64,7 +62,7 @@ static shared_irq_line_t pci_intx[PCI_NUM_PINS];
 
 /*********************** PCI declarations begin here ************************/
 
-static pcidev_t *pci_devs[PCI_NUM_AVAIL_DEVICES];
+static pcidev_t pci_devs[PCI_NUM_SLOTS];
 static unsigned int pci_dev_count;
 
 /************************ PCI declarations end here *************************/
@@ -165,16 +163,12 @@ static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
 static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
                            unsigned int backend_pcidev_id)
 {
-    if (pci_dev_count >= PCI_NUM_AVAIL_DEVICES) {
+    if (pci_dev_count >= PCI_NUM_SLOTS) {
         ZF_LOGE("PCI device register failed: bus full");
         return -1;
     }
 
-    pcidev_t *pcidev = calloc(1, sizeof(*pcidev));
-    if (!pcidev) {
-        ZF_LOGE("Failed to allocate memory");
-        return -1;
-    }
+    pcidev_t *pcidev = &pci_devs[++pci_dev_count];
 
     vmm_pci_address_t bogus_addr = {
         .bus = 0,
@@ -213,17 +207,15 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
         return -1;
     }
 
-    pci_devs[pci_dev_count++] = pcidev;
-
     return 0;
 }
 
 static pcidev_t *pcidev_find(unsigned int backend_id, unsigned int backend_pcidev_id)
 {
-    for (int i = 0; i < pci_dev_count; i++) {
-        if (pci_devs[i]->io_proxy->backend_id == backend_id
-            && pci_devs[i]->backend_pcidev_id == backend_pcidev_id) {
-            return pci_devs[i];
+    for (int i = 1; i < pci_dev_count; i++) {
+        if (pci_devs[i].io_proxy->backend_id == backend_id
+            && pci_devs[i].backend_pcidev_id == backend_pcidev_id) {
+            return &pci_devs[i];
         }
     }
     return NULL;
