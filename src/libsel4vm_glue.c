@@ -17,9 +17,6 @@
 #include <sel4vmmplatsupport/drivers/pci_helper.h>
 #include <pci/helper.h>
 
-#include <fdt_custom.h>
-#include <tii/shared_irq_line.h>
-
 #include "trace.h"
 #include "ioreq.h"
 
@@ -28,21 +25,12 @@
 
 #include <virtioarm/virtio_plat.h>
 
-#define PCI_NUM_SLOTS   (32)
-#define PCI_NUM_PINS    (4)
-
-#define INTERRUPT_PCI_INTX_BASE ((VIRTIO_CON_PLAT_INTERRUPT_LINE) + 1)
-
 typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, unsigned int op,
                                  rpcmsg_t *msg);
 
 /************************* PCI typedefs begin here **************************/
 
-typedef struct pcidev {
-    unsigned int dev_id;
-    unsigned int backend_pcidev_id;
-    io_proxy_t *io_proxy;
-} pcidev_t;
+#define PCI_INTX_IRQ_BASE ((VIRTIO_CON_PLAT_INTERRUPT_LINE) + 1)
 
 /************************** PCI typedefs end here ***************************/
 
@@ -54,57 +42,12 @@ extern vmm_pci_space_t *pci;
 
 /*********************** main declarations begin here ***********************/
 
-static shared_irq_line_t pci_intx[PCI_NUM_PINS];
-
 static int ioack_vcpu_read(seL4_Word data, void *cookie);
 static int ioack_vcpu_write(seL4_Word data, void *cookie);
 
 /************************ main declarations end here ************************/
 
-/*********************** PCI declarations begin here ************************/
-
-static pcidev_t pci_devs[PCI_NUM_SLOTS];
-static unsigned int pci_dev_count;
-
-/************************ PCI declarations end here *************************/
-
 /*************************** PCI code begins here ***************************/
-
-/* Interrupt mapping
- *
- * On ARM 0-31 are used for PPIs and SGIs, we don't allow injecting those.
- * Instead we use that range for virtual PCI devices:
- *   0-31: Virtual PCI devices. Mapped to virtual intx lines.
- *   32-N: SPIs.
- */
-static inline bool irq_is_pci(uint32_t irq)
-{
-    return irq < PCI_NUM_SLOTS;
-}
-
-static inline int pci_swizzle(int slot, int pin)
-{
-    return (slot + pin) % PCI_NUM_PINS;
-}
-
-static inline int pci_map_irq(pcidev_t *pcidev)
-{
-    return pci_swizzle(pcidev->dev_id, 0);
-}
-
-static inline
-seL4_Word pci_cfg_ioreq_native(pcidev_t *pcidev, unsigned int dir,
-                               uintptr_t offset, size_t size, seL4_Word value)
-{
-    int err = ioreq_native(pcidev->io_proxy, AS_PCIDEV(pcidev->backend_pcidev_id),
-                           dir, offset, size, &value);
-    if (err) {
-        ZF_LOGE("ioreq_native() failed (%d)", err);
-        return 0;
-    }
-
-    return value;
-}
 
 #define pci_cfg_read(_pcidev, _offset, _sz) \
     pci_cfg_ioreq_native(_pcidev, SEL4_IO_DIR_READ, _offset, _sz, 0)
@@ -117,10 +60,10 @@ static uint8_t pci_cfg_read8(void *cookie, vmm_pci_address_t addr,
     switch (offset) {
     case PCI_INTERRUPT_LINE:
         /* Map device interrupt to INTx lines */
-        return INTERRUPT_PCI_INTX_BASE + pci_map_irq(cookie);
+        return PCI_INTX_IRQ_BASE + pci_map_irq(cookie, PCI_INTA);
     case PCI_INTERRUPT_PIN:
         /* Map device interrupt to INTx pin */
-        return pci_map_irq(cookie) + 1;
+        return pci_map_irq(cookie, PCI_INTA) + 1;
     default:
         return pci_cfg_read(cookie, offset, 1);
     }
@@ -156,16 +99,8 @@ static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
     pci_cfg_write(cookie, offset, 4, val);
 }
 
-static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
-                           unsigned int backend_pcidev_id)
+static int pcidev_register(pcidev_t *pcidev, void *pci_bus_cookie)
 {
-    if (pci_dev_count >= PCI_NUM_SLOTS) {
-        ZF_LOGE("PCI device register failed: bus full");
-        return -1;
-    }
-
-    pcidev_t *pcidev = &pci_devs[++pci_dev_count];
-
     vmm_pci_address_t bogus_addr = {
         .bus = 0,
         .dev = 0,
@@ -182,6 +117,8 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
         .iowrite32 = pci_cfg_write32,
     };
 
+    vmm_pci_space_t *pci = pci_bus_cookie;
+
     vmm_pci_entry_t entry = vmm_pci_create_passthrough(bogus_addr, config);
     vmm_pci_address_t addr;
     int err = vmm_pci_add_entry(pci, entry, &addr);
@@ -190,79 +127,7 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
         return -1;
     }
 
-    pcidev->dev_id = addr.dev;
-    pcidev->backend_pcidev_id = backend_pcidev_id;
-    pcidev->io_proxy = io_proxy;
-
-    ZF_LOGI("Registering PCI device %u (remote %u:%u)", pcidev->idx,
-            pcidev->backend_id, pcidev->backend_pcidev_index);
-
-    err = fdt_generate_virtio_node(io_proxy->dtb_buf, pcidev->dev_id,
-                                   io_proxy->data_base, io_proxy->data_size);
-    if (err) {
-        ZF_LOGE("fdt_generate_virtio_node() failed (%d)", err);
-        return -1;
-    }
-
-    return 0;
-}
-
-static pcidev_t *pcidev_find(unsigned int backend_id, unsigned int backend_pcidev_id)
-{
-    for (int i = 1; i < pci_dev_count; i++) {
-        if (pci_devs[i].io_proxy->backend_id == backend_id
-            && pci_devs[i].backend_pcidev_id == backend_pcidev_id) {
-            return &pci_devs[i];
-        }
-    }
-    return NULL;
-}
-
-static int pcidev_intx_set(unsigned int backend_id,
-                           unsigned int backend_pcidev_id,
-                           bool level)
-{
-    /* pcidev_id must map to irq */
-    if (!irq_is_pci(backend_pcidev_id)) {
-        ZF_LOGE("Interrupt %u is not a valid PCI device interrupt",
-                backend_pcidev_id);
-        return -1;
-    }
-
-    pcidev_t *pcidev = pcidev_find(backend_id, backend_pcidev_id);
-    if (!pcidev) {
-        ZF_LOGE("Backend %u does not contain pcidev %u",
-                backend_id, backend_pcidev_id);
-        return -1;
-    }
-
-    return shared_irq_line_change(&pci_intx[pci_map_irq(pcidev)],
-                                  pcidev->dev_id, level);
-}
-
-static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
-{
-    int err;
-
-    switch (op) {
-    case RPC_MR0_OP_SET_IRQ:
-        err = pcidev_intx_set(io_proxy->backend_id, msg->mr1, true);
-        break;
-    case RPC_MR0_OP_CLR_IRQ:
-        err = pcidev_intx_set(io_proxy->backend_id, msg->mr1, false);
-        break;
-    case RPC_MR0_OP_REGISTER_PCI_DEV:
-        err = pcidev_register(pci, io_proxy, msg->mr1);
-        break;
-    default:
-        return RPCMSG_RC_NONE;
-    }
-
-    if (err) {
-        return RPCMSG_RC_ERROR;
-    }
-
-    return RPCMSG_RC_HANDLED;
+    return addr.dev;
 }
 
 /**************************** PCI code ends here ****************************/
@@ -377,32 +242,12 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
     return FAULT_HANDLED;
 }
 
-static int irq_init(vm_t *vm)
-{
-    static bool done = false;
-
-    if (!done) {
-        int err;
-        /* Initialize INTA-D */
-        for (int i = 0; i < PCI_NUM_PINS; i++) {
-            err = shared_irq_line_init(&pci_intx[i], vm->vcpus[BOOT_VCPU],
-                                       INTERRUPT_PCI_INTX_BASE + i);
-            if (err) {
-                break;
-            }
-        }
-
-        if (!err) {
-            done = true;
-        }
-    }
-
-    return done ? 0 : -1;
-}
-
 int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
 {
     io_proxy_init(io_proxy);
+
+    io_proxy->pcidev_register = pcidev_register;
+    io_proxy->pci_bus_cookie = pci;
 
     vm_memory_reservation_t *reservation;
 
@@ -417,9 +262,9 @@ int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
                                        io_proxy);
     ZF_LOGF_IF(!reservation, "Cannot reserve vspace for virtio control plane");
 
-    int err = irq_init(vm);
+    int err = pci_irq_init(vm->vcpus[BOOT_VCPU], PCI_INTX_IRQ_BASE);
     if (err) {
-        ZF_LOGE("irq_init() failed");
+        ZF_LOGE("pci_irq_init() failed");
         return -1;
     }
 

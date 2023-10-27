@@ -120,7 +120,7 @@ typedef unsigned long seL4_Word;
 
 #define RPCMSG_BUFFER_SIZE  32
 
-typedef struct {
+typedef struct rpcmsg {
     seL4_Word mr0;
     seL4_Word mr1;
     seL4_Word mr2;

@@ -6,6 +6,11 @@
 
 #pragma once
 
+#include <inttypes.h>
+#include <stdbool.h>
+
+#include <sel4/sel4.h>
+
 /***
  * @module shared_irq_line.h
  * This module emulates the level-triggered interrupt line. Such a line can be
@@ -14,7 +19,7 @@
  */
 
 typedef struct shared_irq_line {
-    vm_vcpu_t *vcpu;
+    void *vcpu_cookie;
     unsigned int irq;
     uint64_t sources;
 } shared_irq_line_t;
@@ -23,11 +28,11 @@ typedef struct shared_irq_line {
  * @function shared_irq_line_init(line, vcpu, irq)
  * Initialize shared IRQ line emulation object.
  * @param {share_irq_line_t *} line     Pointer to shared IRQ line object
- * @param {vm_vcpu_t *} vcpu            vCPU to which IRQ will be injected
+ * @param {void *} vcpu_cookie          vCPU to which IRQ will be injected
  * @param {unsigned int} irq            IRQ number that will be injected
  * @return                              Zero on success, non-zero on failure
  */
-int shared_irq_line_init(shared_irq_line_t *line, vm_vcpu_t *vcpu,
+int shared_irq_line_init(shared_irq_line_t *line, void *vcpu_cookie,
                          unsigned int irq);
 
 /***

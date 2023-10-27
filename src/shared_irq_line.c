@@ -12,10 +12,12 @@ static void shared_irq_ack(vm_vcpu_t *vcpu, int irq, void *cookie)
 {
 }
 
-int shared_irq_line_init(shared_irq_line_t *line, vm_vcpu_t *vcpu,
+int shared_irq_line_init(shared_irq_line_t *line, void *vcpu_cookie,
                          unsigned int irq)
 {
-    line->vcpu = vcpu;
+    vm_vcpu_t *vcpu = vcpu_cookie;
+
+    line->vcpu_cookie = vcpu;
     line->irq = irq;
     line->sources = 0;
 
@@ -49,5 +51,6 @@ int shared_irq_line_change(shared_irq_line_t *line, unsigned int source,
         return 0;
     }
 
-    return vm_set_irq_level(line->vcpu, line->irq, !!line->sources);
+    return vm_set_irq_level((vm_vcpu_t *)line->vcpu_cookie, line->irq,
+                            !!line->sources);
 }

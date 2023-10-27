@@ -10,6 +10,8 @@
 #include <sel4vm/guest_vm.h>
 #include <sel4vmmplatsupport/ioports.h>
 
+#include <tii/pci.h>
+
 #define RPCMSG_RC_ERROR -1
 #define RPCMSG_RC_NONE 0
 #define RPCMSG_RC_HANDLED 1
@@ -24,6 +26,7 @@ typedef uint64_t __u64;
 #include "sel4_virt_types.h"
 
 typedef int (*ioack_fn_t)(seL4_Word data, void *cookie);
+typedef int (*pcidev_register_fn_t)(pcidev_t *pcidev, void *pci_bus_cookie);
 
 typedef struct ioack {
     ioack_fn_t callback;
@@ -44,6 +47,9 @@ typedef struct io_proxy {
     void *dtb_buf;
     vka_t *vka;
     ioack_t ioacks[SEL4_MMIO_MAX_VCPU + SEL4_MMIO_MAX_NATIVE];
+    pcidev_t pci_slots[PCI_NUM_SLOTS];
+    pcidev_register_fn_t pcidev_register;
+    void *pci_bus_cookie;
 } io_proxy_t;
 
 static inline int io_proxy_run(io_proxy_t *io_proxy)
