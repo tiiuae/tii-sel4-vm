@@ -36,8 +36,6 @@
 typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, unsigned int op,
                                  rpcmsg_t *msg);
 
-extern vka_t _vka;
-
 /************************* PCI typedefs begin here **************************/
 
 typedef struct pcidev {
