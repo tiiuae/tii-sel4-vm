@@ -64,7 +64,7 @@ static int ioreq_native_slot(io_proxy_t *io_proxy)
     /* ioreq_native_data is in thread local storage, hence a unique ID
      * is returned for each native thread calling this.
      */
-    if (!ioreq_native_data.slot) {
+    if (ioreq_native_data.slot) {
         return ioreq_native_data.slot;
     }
 
