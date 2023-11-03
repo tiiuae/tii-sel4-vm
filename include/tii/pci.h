@@ -19,6 +19,15 @@
 #define PCI_INTC    2
 #define PCI_INTD    3
 
+#define PCI_DEVFN(slot, func)	((((slot) & 0x1f) << 3) | ((func) & 0x07))
+
+#define PCI_SLOT(devfn)		(((devfn) >> 3) & 0x1f)
+#define PCI_FUNC(devfn)		((devfn) & 0x07)
+
+#define PCI_BUS(devfn)		(((devfn) >> 16) & 0xff)
+#define PCI_DOMAIN(devfn)       (((devfn) >> 28) & 0x07)
+#define PCI_DEVFN_EXT(slot, func, bus, domain) (PCI_DEVFN(slot, func) | (((bus) & 0xff) << 16) | (((domain) & 0x07) << 28))
+
 typedef struct io_proxy io_proxy_t;
 typedef struct rpcmsg rpcmsg_t;
 
@@ -49,4 +58,4 @@ seL4_Word pci_cfg_ioreq_native(pcidev_t *pcidev, unsigned int dir,
 
 int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg);
 
-int pci_irq_init(void *vcpu_cookie, unsigned int irq_base);
+int pci_irq_init(unsigned int irq_base, void *irq_cookie);

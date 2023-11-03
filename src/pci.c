@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define ZF_LOG_LEVEL ZF_LOG_INFO
+
 #include <tii/pci.h>
 #include <tii/shared_irq_line.h>
 #include <ioreq.h>
 
 #include <fdt_custom.h>
 
-static bool pci_irq_init_done = false;
-
-static unsigned int pci_dev_count;
+static bool pci_irq_init_done;
 
 static shared_irq_line_t pci_intx[PCI_NUM_PINS];
 
@@ -31,16 +31,17 @@ seL4_Word pci_cfg_ioreq_native(pcidev_t *pcidev, unsigned int dir,
     return value;
 }
 
-static int pcidev_register(io_proxy_t *io_proxy, unsigned int backend_slot)
+static int pcidev_register(io_proxy_t *io_proxy, unsigned int backend_devfn)
 {
-    if ((pci_dev_count + 1) >= PCI_NUM_SLOTS) {
-        ZF_LOGE("No free slots");
+    unsigned int backend_slot = PCI_SLOT(backend_devfn);
+    if (backend_slot >= PCI_NUM_SLOTS) {
+        ZF_LOGE("Invalid slot %u", backend_slot);
         return -1;
     }
 
     pcidev_t *pcidev = &io_proxy->pci_slots[backend_slot];
 
-    int slot = io_proxy->pcidev_register(pcidev, io_proxy->pci_bus_cookie);
+    int slot = io_proxy->pcidev_register(pcidev, io_proxy->pci_cookie);
     if (slot == -1) {
         ZF_LOGE("pcidev_register() callback failed (%d)", slot);
         return -1;
@@ -49,8 +50,13 @@ static int pcidev_register(io_proxy_t *io_proxy, unsigned int backend_slot)
     pcidev->slot = slot;
     pcidev->io_proxy = io_proxy;
 
+    /* Encoding backend ID into PCI domain is a hack -- when we get SMMU
+     * support, we might need to give up this, but it is not a big deal
+     * since this is just for debug purposes.
+     */
+    unsigned int backend_domain = PCI_DOMAIN(backend_devfn);
     ZF_LOGI("Registering PCI device %u (remote %u:%u)", pcidev->slot,
-            pcidev->io_proxy->backend_id, backend_slot);
+            backend_domain, backend_slot);
 
     int err = fdt_generate_virtio_node(io_proxy->dtb_buf, pcidev->slot,
                                        io_proxy->data_base,
@@ -59,8 +65,6 @@ static int pcidev_register(io_proxy_t *io_proxy, unsigned int backend_slot)
         ZF_LOGE("fdt_generate_virtio_node() failed (%d)", err);
         return -1;
     }
-
-    pci_dev_count++;
 
     return 0;
 }
@@ -103,14 +107,14 @@ int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
     return RPCMSG_RC_HANDLED;
 }
 
-int pci_irq_init(void *vcpu_cookie, unsigned int irq_base)
+int pci_irq_init(unsigned int irq_base, void *irq_cookie)
 {
     if (pci_irq_init_done) {
         return 0;
     }
 
     for (int i = 0; i < PCI_NUM_PINS; i++) {
-        int err = shared_irq_line_init(&pci_intx[i], vcpu_cookie, irq_base + i);
+        int err = shared_irq_line_init(&pci_intx[i], irq_cookie, irq_base + i);
         if (err) {
             ZF_LOGE("shared_irq_line_init() failed (%d)", err);
             return -1;

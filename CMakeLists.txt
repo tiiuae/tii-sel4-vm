@@ -16,6 +16,7 @@ file(
     GLOB
         tii_sel4vm_sources
         src/*.c
+        src/libsel4vm/*.c
 if(KernelPlatformRpi4)
         src/plat/rpi4/*.c
 else()

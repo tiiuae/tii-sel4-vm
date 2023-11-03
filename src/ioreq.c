@@ -7,6 +7,7 @@
 #include <sync/sem.h>
 
 #include "ioreq.h"
+#include <tii/pci.h>
 
 #define mb() __sync_synchronize()
 #define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
@@ -161,6 +162,30 @@ int io_proxy_init(io_proxy_t *io_proxy)
         ZF_LOGE("sync_sem_new() failed (%d)", err);
         return -1;
     }
+
+    /* TODO: here we allocate a region for all devices provided by backend,
+     * whereas we should consult capability list of the PCI device to find
+     * out the virtio control plane details -- in other words, do it in
+     * pcidev_register() -- at that point these configuration variables
+     * can be factored out.
+     */
+    err = io_proxy->fault_handler_install(io_proxy, io_proxy->ctrl_base,
+                                          io_proxy->ctrl_size);
+    ZF_LOGF_IF(err, "Cannot reserve vspace for virtio control plane");
+
+    err = pci_irq_init(io_proxy->pci_irq_base, io_proxy->pci_irq_cookie);
+    if (err) {
+        ZF_LOGE("pci_irq_init() failed");
+        return -1;
+    }
+
+    err = io_proxy_run(io_proxy);
+    if (err) {
+        ZF_LOGE("io_proxy_run() failed");
+        return -1;
+    }
+
+    io_proxy_wait_until_device_ready(io_proxy);
 
     return 0;
 }

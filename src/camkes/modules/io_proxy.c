@@ -9,6 +9,7 @@
 
 #include <fdt_custom.h>
 #include <tii/camkes/io_proxy.h>
+#include <tii/libsel4vm.h>
 #include <ioreq.h>
 
 extern vka_t _vka; /* from CAmkES VM */
@@ -29,7 +30,7 @@ void camkes_io_proxy_module_init(vm_t *vm, void *cookie)
     io_proxy->dtb_buf = gen_dtb_buf;
     io_proxy->vka = &_vka;
 
-    int err = libsel4vm_io_proxy_init(vm, io_proxy);
+    int err = libsel4vm_io_proxy_init(io_proxy, vm);
     if (err) {
         ZF_LOGF("libsel4vm_io_proxy_init() failed (%d)", err);
         /* no return */
