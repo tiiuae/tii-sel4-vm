@@ -146,7 +146,7 @@ static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie)
 {
     ioreq_sync_t *sync = cookie;
 
-    uint32_t data = 0;
+    uint64_t data = 0;
 
     if (ioreq->direction == SEL4_IO_DIR_READ) {
         memcpy(&data, &ioreq->data, ioreq->len);
