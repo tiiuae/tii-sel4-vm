@@ -27,7 +27,7 @@ void trace_dump(void);
 #else
 
 #define trace(__str__)
-static inline unsigned int trace_index(const char *str) { ARG_UNUSED(str); }
+static inline unsigned int trace_index(const char *str) { ARG_UNUSED(str); return 1; }
 static inline void trace_start(void) {}
 static inline void trace_stop(void) {}
 static inline void trace_dump(void) {}
