@@ -7,9 +7,11 @@
 #include <camkes.h>
 #include <vmlinux.h>
 
+#include <tii/guest.h>
 #include <tii/ram_dataport.h>
 #include <tii/io_proxy.h>
 #include <tii/camkes/io_proxy.h>
+#include <tii/fdt.h>
 
 #include <sel4-qemu.h>
 
@@ -54,9 +56,17 @@ int vm/*? dev.id ?*/_io_proxy_run(io_proxy_t *io_proxy)
     return 0;
 }
 
+static fdt_reserved_memory_t fdt_swiotlb_vm/*? dev.id ?*/ = {
+    .rm = {
+        .base = /*? dev.data_base ?*/,
+        .size = /*? dev.data_size ?*/,
+    },
+    .name = "swiotlb_vm/*? dev.id ?*/",
+    .compatible = "restricted-dma-pool",
+};
+
 io_proxy_t vm/*? dev.id ?*/_io_proxy = {
-    .data_base = /*? dev.data_base ?*/,
-    .data_size = /*? dev.data_size ?*/,
+    .data_plane = &fdt_swiotlb_vm/*? dev.id ?*/.rm,
     .ctrl_base = /*? dev.ctrl_base ?*/,
     .ctrl_size = /*? dev.ctrl_size ?*/,
     .run = vm/*? dev.id ?*/_io_proxy_run,
