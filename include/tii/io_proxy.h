@@ -20,6 +20,8 @@ typedef uint64_t __u64;
 #include "sel4_virt_types.h"
 #include "sel4-qemu.h"
 
+#include <tii/guest.h>
+
 #define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
 
 typedef struct ioack {
@@ -34,8 +36,7 @@ typedef struct io_proxy {
     rpcmsg_queue_t *rx_queue;
     void (*backend_notify)(struct io_proxy *io_proxy);
     int (*run)(struct io_proxy *io_proxy);
-    uintptr_t data_base;
-    size_t data_size;
+    guest_reserved_memory_t *data_plane;
     uintptr_t ctrl_base;
     size_t ctrl_size;
     uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
