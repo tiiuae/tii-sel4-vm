@@ -24,8 +24,10 @@ typedef uint64_t __u64;
 
 #define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
 
+typedef int (*ioack_fn_t)(struct sel4_ioreq *ioreq, void *cookie);
+
 typedef struct ioack {
-    int (*callback)(struct sel4_ioreq *ioreq, void *cookie);
+    ioack_fn_t callback;
     void *cookie;
 } ioack_t;
 
@@ -41,7 +43,7 @@ typedef struct io_proxy {
     size_t ctrl_size;
     uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
     vka_t *vka;
-    ioack_t ioacks[SEL4_MAX_IOREQS];
+    ioack_t ioacks[SEL4_MMIO_MAX_VCPU + SEL4_MMIO_MAX_NATIVE];
 } io_proxy_t;
 
 static inline void io_proxy_backend_notify(io_proxy_t *io_proxy)
@@ -59,9 +61,9 @@ static uintptr_t io_proxy_iobuf_page(io_proxy_t *io_proxy, unsigned int page)
     return io_proxy->iobuf_page_get(io_proxy, page);
 }
 
-int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
-                unsigned int direction, uintptr_t offset, size_t size,
-                uint64_t val);
+int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t callback,
+                void *cookie, uint32_t addr_space, unsigned int direction,
+                uintptr_t offset, size_t size, uint64_t val);
 
 int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot);
 
