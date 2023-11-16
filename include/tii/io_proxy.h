@@ -65,7 +65,9 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
 
 int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot);
 
-int ioreq_wait(uint64_t *value);
+int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
+                 unsigned int direction, uintptr_t offset, size_t len,
+                 uint64_t *value);
 
 void io_proxy_wait_for_backend(io_proxy_t *io_proxy);
 

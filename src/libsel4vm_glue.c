@@ -84,18 +84,11 @@ static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
                                      uint64_t value)
 {
     unsigned int backend_slot = PCI_SLOT(pcidev->backend_devfn);
-    int err = ioreq_start(pcidev->io_proxy, VCPU_NONE, AS_PCIDEV(backend_slot),
-                          dir, offset, size, value);
-    if (err) {
-        ZF_LOGE("ioreq_start() failed (%d)", err);
-        return 0;
-    }
 
-    io_proxy_backend_notify(pcidev->io_proxy);
-
-    int err = ioreq_wait(&value);
+    int err = ioreq_native(pcidev->io_proxy, AS_PCIDEV(backend_slot),
+                           dir, offset, size, &value);
     if (err) {
-        ZF_LOGE("ioreq_wait() failed");
+        ZF_LOGE("ioreq_native() failed (%d)", err);
         return 0;
     }
 
