@@ -21,17 +21,18 @@
 #define ioreq_state_complete(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_COMPLETE)
 #define ioreq_state_free(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_FREE)
 
-typedef struct ioreq_sync {
+typedef struct ioreq_native {
     bool initialized;
     sync_sem_t handoff;
     uint64_t value;
-} ioreq_sync_t;
+} ioreq_native_t;
 
-static __thread ioreq_sync_t ioreq_sync;
+static __thread ioreq_native_t ioreq_native_data;
 
-static ioreq_sync_t *ioreq_sync_prepare(vka_t *vka);
+static ioreq_native_t *ioreq_native_prepare(vka_t *vka);
+static int ioreq_native_wait(uint64_t *value);
 static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie);
-static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie);
+static int ioreq_native_finish(struct sel4_ioreq *ioreq, void *cookie);
 
 static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
                                                    int slot)
@@ -81,8 +82,8 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
         ioack->callback = ioreq_vcpu_finish;
         ioack->cookie = vcpu;
     } else {
-        ioack->callback = ioreq_sync_finish;
-        ioack->cookie = ioreq_sync_prepare(io_proxy->vka);
+        ioack->callback = ioreq_native_finish;
+        ioack->cookie = ioreq_native_prepare(io_proxy->vka);
     }
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
@@ -131,40 +132,62 @@ static int ioreq_vcpu_finish(struct sel4_ioreq *ioreq, void *cookie)
     return 0;
 }
 
-static ioreq_sync_t *ioreq_sync_prepare(vka_t *vka)
+static ioreq_native_t *ioreq_native_prepare(vka_t *vka)
 {
-    if (!ioreq_sync.initialized) {
-        if (sync_sem_new(vka, &ioreq_sync.handoff, 0)) {
+    if (!ioreq_native_data.initialized) {
+        if (sync_sem_new(vka, &ioreq_native_data.handoff, 0)) {
             ZF_LOGF("Unable to allocate handoff semaphore");
         }
-        ioreq_sync.initialized = true;
+        ioreq_native_data.initialized = true;
     }
 
-    return &ioreq_sync;
+    return &ioreq_native_data;
 }
 
-static int ioreq_sync_finish(struct sel4_ioreq *ioreq, void *cookie)
+static int ioreq_native_finish(struct sel4_ioreq *ioreq, void *cookie)
 {
-    ioreq_sync_t *sync = cookie;
+    ioreq_native_t *native_data = cookie;
 
     uint64_t data = 0;
 
     if (ioreq->direction == SEL4_IO_DIR_READ) {
         memcpy(&data, &ioreq->data, ioreq->len);
-        sync->value = data;
+        native_data->value = data;
     }
 
-    sync_sem_post(&sync->handoff);
+    sync_sem_post(&native_data->handoff);
 
     return 0;
 }
 
-int ioreq_wait(uint64_t *value)
+static int ioreq_native_wait(uint64_t *value)
 {
-    sync_sem_wait(&ioreq_sync.handoff);
+    sync_sem_wait(&ioreq_native_data.handoff);
 
     if (value) {
-        *value = ioreq_sync.value;
+        *value = ioreq_native_data.value;
+    }
+
+    return 0;
+}
+
+int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
+                 unsigned int direction, uintptr_t addr, size_t size,
+                 uint64_t *value)
+{
+    int err = ioreq_start(io_proxy, VCPU_NONE, addr_space, direction, addr,
+                          size, *value);
+    if (err) {
+        ZF_LOGE("ioreq_start() failed (%d)", err);
+        return -1;
+    }
+
+    io_proxy_backend_notify(io_proxy);
+
+    err = ioreq_native_wait(value);
+    if (err) {
+        ZF_LOGE("ioreq_native_wait() failed");
+        return -1;
     }
 
     return 0;
