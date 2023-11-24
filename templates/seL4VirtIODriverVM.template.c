@@ -76,7 +76,7 @@ int ram_dataport_setup(void)
     extern dataport_caps_handle_t vm/*? dev.id ?*/_memdev_handle;
     dp = &vm/*? dev.id ?*/_memdev_handle;
     ram_dp = &vm/*? dev.id ?*/_ram_dataport;
-    ram_dp->addr = /*? dev.data_base ?*/,
+    ram_dp->addr = /*? dev.data_base ?*/;
     /* TODO: dev.data_size is ignored, should we do safety check? */
     ram_dp->frames = dp->get_frame_caps();
     ram_dp->num_frames = dp->get_num_frame_caps();
