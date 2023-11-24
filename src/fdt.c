@@ -9,9 +9,7 @@
 #include <libfdt.h>
 
 #include <tii/fdt.h>
-
-/* see linux/include/linux/pci.h */
-#define PCI_DEVFN(slot, func)  ((((slot) & 0x1f) << 3) | ((func) & 0x07))
+#include <tii/pci.h>
 
 /* TODO: refactor fdt_generate_memory_node out of CAmkES VM */
 int fdt_generate_memory_node(void *fdt, uintptr_t base, size_t size);
@@ -138,10 +136,11 @@ static uint32_t fdt_get_swiotlb_phandle(void *fdt, uintptr_t data_base,
     return phandle;
 }
 
-int fdt_generate_pci_node(void *fdt, const char *name, uint32_t dev)
+static int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn)
 {
     int root_offset = fdt_path_offset(fdt, "/pci");
     if (root_offset < 0) {
+        ZF_LOGE("fdt_path_offset() failed (%d)", root_offset);
         return root_offset;
     }
 
@@ -151,7 +150,11 @@ int fdt_generate_pci_node(void *fdt, const char *name, uint32_t dev)
         return this;
     }
 
-    uint32_t devfn = PCI_DEVFN(dev, 0);
+    /* 'reg' is a quintet (phys.hi phys.mid phys.lo size.hi size.lo), all cells
+     * zero except phys.hi which is 0b00000000 bbbbbbbb dddddfff 00000000.
+     *
+     * For now, we also assume bus is always zero.
+     */
     int err = fdt_appendprop_u32(fdt, this, "reg", (devfn & 0xff) << 8);
     for (int j = 0; !err && j < 4; j++) {
         err = fdt_appendprop_u32(fdt, this, "reg", 0);
@@ -167,6 +170,8 @@ int fdt_generate_pci_node(void *fdt, const char *name, uint32_t dev)
 int fdt_generate_virtio_node(void *fdt, unsigned int idx, uintptr_t data_base,
                              size_t data_size)
 {
+    uint32_t devfn = PCI_DEVFN(idx, 0);
+
     char name[64];
     sprintf(name, "virtio%d", idx);
 
@@ -182,7 +187,7 @@ int fdt_generate_virtio_node(void *fdt, unsigned int idx, uintptr_t data_base,
         return -1;
     }
 
-    int this = fdt_generate_pci_node(fdt, name, idx);
+    int this = fdt_generate_pci_node(fdt, name, devfn);
     if (this <= 0) {
         ZF_LOGE("fdt_generate_pci_node() failed (%d)", this);
         return -1;
