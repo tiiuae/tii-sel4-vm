@@ -34,7 +34,6 @@ typedef struct io_proxy {
     rpcmsg_queue_t *rx_queue;
     void (*backend_notify)(struct io_proxy *io_proxy);
     int (*run)(struct io_proxy *io_proxy);
-    uint32_t backend_id;
     uintptr_t data_base;
     size_t data_size;
     uintptr_t ctrl_base;
