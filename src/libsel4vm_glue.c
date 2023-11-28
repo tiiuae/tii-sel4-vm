@@ -23,6 +23,7 @@
 #include "sel4-qemu.h"
 #include <tii/trace.h>
 #include <tii/io_proxy.h>
+#include <tii/pci.h>
 
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>
@@ -43,8 +44,8 @@ extern vka_t _vka;
 /************************* PCI typedefs begin here **************************/
 
 typedef struct pcidev {
-    unsigned int dev_id;
-    unsigned int backend_pcidev_id;
+    uint32_t devfn;
+    uint32_t backend_devfn;
     io_proxy_t *io_proxy;
 } pcidev_t;
 
@@ -90,14 +91,15 @@ static inline int pci_swizzle(int slot, int pin)
 
 static inline int pci_map_irq(pcidev_t *pcidev)
 {
-    return pci_swizzle(pcidev->dev_id, 0);
+    return pci_swizzle(PCI_SLOT(pcidev->devfn), 0);
 }
 
 static inline uint64_t pci_cfg_start(pcidev_t *pcidev, unsigned int dir,
                                      uintptr_t offset, size_t size,
                                      uint64_t value)
 {
-    int slot = ioreq_start(pcidev->io_proxy, VCPU_NONE, AS_PCIDEV(pcidev->backend_pcidev_id),
+    unsigned int backend_slot = PCI_SLOT(pcidev->backend_devfn);
+    int slot = ioreq_start(pcidev->io_proxy, VCPU_NONE, AS_PCIDEV(backend_slot),
                            dir, offset, size, value);
     assert(ioreq_slot_valid(slot));
 
@@ -163,7 +165,7 @@ static void pci_cfg_write32(void *cookie, vmm_pci_address_t addr,
 }
 
 static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
-                           unsigned int backend_pcidev_id)
+                           uint32_t backend_devfn)
 {
     if (pci_dev_count >= PCI_NUM_AVAIL_DEVICES) {
         ZF_LOGE("PCI device register failed: bus full");
@@ -200,13 +202,14 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
         return -1;
     }
 
-    pcidev->dev_id = addr.dev;
-    pcidev->backend_pcidev_id = backend_pcidev_id;
+    pcidev->devfn = PCI_DEVFN(addr.dev, addr.fun);
+    pcidev->backend_devfn = backend_devfn;
     pcidev->io_proxy = io_proxy;
 
-    ZF_LOGI("Registering PCI device %u", pcidev->dev_id);
+    ZF_LOGI("Registering PCI devfn 0x%"PRIx32" (backend %p devfn 0x%"PRIx32")",
+        pcidev->devfn, io_proxy, pcidev->backend_devfn);
 
-    err = fdt_generate_virtio_node(io_proxy->dtb_buf, pcidev->dev_id,
+    err = fdt_generate_virtio_node(io_proxy->dtb_buf, pcidev->devfn,
                                    io_proxy->data_base, io_proxy->data_size);
     if (err) {
         ZF_LOGE("fdt_generate_virtio_node() failed (%d)", err);
@@ -218,37 +221,36 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
     return 0;
 }
 
-static pcidev_t *pcidev_find(unsigned int backend_id, unsigned int backend_pcidev_id)
+static pcidev_t *pcidev_find(unsigned int backend_id, uint32_t backend_devfn)
 {
     for (int i = 0; i < pci_dev_count; i++) {
         if (pci_devs[i]->io_proxy->backend_id == backend_id
-            && pci_devs[i]->backend_pcidev_id == backend_pcidev_id) {
+            && pci_devs[i]->backend_devfn == backend_devfn) {
             return pci_devs[i];
         }
     }
     return NULL;
 }
 
-static int pcidev_intx_set(unsigned int backend_id,
-                           unsigned int backend_pcidev_id,
+static int pcidev_intx_set(unsigned int backend_id, uint32_t backend_devfn,
                            bool level)
 {
-    /* pcidev_id must map to irq */
-    if (!irq_is_pci(backend_pcidev_id)) {
-        ZF_LOGE("Interrupt %u is not a valid PCI device interrupt",
-                backend_pcidev_id);
+    /* slot must map to irq */
+    unsigned int irq = PCI_SLOT(backend_devfn);
+    if (!irq_is_pci(irq)) {
+        ZF_LOGE("Interrupt %u is not a valid PCI device interrupt", irq);
         return -1;
     }
 
-    pcidev_t *pcidev = pcidev_find(backend_id, backend_pcidev_id);
+    pcidev_t *pcidev = pcidev_find(backend_id, backend_devfn);
     if (!pcidev) {
-        ZF_LOGE("Backend %u does not contain pcidev %u",
-                backend_id, backend_pcidev_id);
+        ZF_LOGE("Backend %u does not contain PCI devfn 0x%"PRIx32,
+                backend_id, backend_devfn);
         return -1;
     }
 
     return shared_irq_line_change(&pci_intx[pci_map_irq(pcidev)],
-                                  pcidev->dev_id, level);
+                                  PCI_SLOT(pcidev->devfn), level);
 }
 
 static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
@@ -257,13 +259,13 @@ static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
 
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_SET_IRQ:
-        err = pcidev_intx_set(io_proxy->backend_id, msg->mr1, true);
+        err = pcidev_intx_set(io_proxy->backend_id, PCI_DEVFN(msg->mr1, 0), true);
         break;
     case QEMU_OP_CLR_IRQ:
-        err = pcidev_intx_set(io_proxy->backend_id, msg->mr1, false);
+        err = pcidev_intx_set(io_proxy->backend_id, PCI_DEVFN(msg->mr1, 0), false);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
-        err = pcidev_register(pci, io_proxy, msg->mr1);
+        err = pcidev_register(pci, io_proxy, PCI_DEVFN(msg->mr1, 0));
         break;
     default:
         return 0;

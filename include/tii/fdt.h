@@ -22,5 +22,5 @@ int fdt_generate_reserved_node(void *fdt, const char *name,
                                const char *compatible, uintptr_t base,
                                size_t size, uint32_t *phandle);
 
-int fdt_generate_virtio_node(void *fdt, unsigned int idx, uintptr_t base,
+int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t base,
                              size_t size);
