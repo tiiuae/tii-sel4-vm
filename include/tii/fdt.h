@@ -18,11 +18,17 @@ extern size_t guest_ram_size;
 
 int fdt_plat_customize(vm_t *vm, void *dtb_buf);
 
-int fdt_generate_reserved_node(void *fdt, const char *name,
+int fdt_generate_reserved_node(void *fdt, const char *prefix,
                                const char *compatible, uintptr_t base,
                                size_t size, uint32_t *phandle);
 
 int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t base,
                              size_t size);
 
-int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn);
+int fdt_format_memory_name(char *buffer, size_t len, const char *prefix,
+                           uintptr_t base);
+
+int fdt_format_pci_devfn_name(char *buffer, size_t len, const char *prefix,
+                              uint32_t devfn);
+
+int fdt_generate_pci_node(void *fdt, const char *prefix, uint32_t devfn);
