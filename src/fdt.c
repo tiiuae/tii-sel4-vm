@@ -11,6 +11,11 @@
 #include <tii/fdt.h>
 #include <tii/pci.h>
 
+#define fdt_format(_buf, _len, _fmt, ...) ({ \
+    int _n = snprintf(_buf, _len, _fmt, ##__VA_ARGS__); \
+    ((_n < 0) || (_n >= _len)) ? -FDT_ERR_INTERNAL : 0; \
+})
+
 /* TODO: refactor fdt_generate_memory_node out of CAmkES VM */
 int fdt_generate_memory_node(void *fdt, uintptr_t base, size_t size);
 
@@ -39,11 +44,18 @@ static int fdt_assign_phandle(void *fdt, int offset, uint32_t *result_phandle)
     return 0;
 }
 
-int fdt_generate_reserved_node(void *fdt, const char *name,
+int fdt_generate_reserved_node(void *fdt, const char *prefix,
                                const char *compatible, uintptr_t base,
                                size_t size, uint32_t *phandle)
 {
     int err;
+
+    char name[64];
+    err = fdt_format_memory_name(name, sizeof(name), prefix, base);
+    if (err) {
+        ZF_LOGE("fdt_format_memory_name() failed (%d)", err);
+        return -FDT_ERR_INTERNAL;
+    }
 
     int root_offset = fdt_path_offset(fdt, "/reserved-memory");
     if (root_offset < 0) {
@@ -93,8 +105,14 @@ error:
 static int fdt_get_swiotlb_node(void *fdt, uintptr_t data_base,
                                 size_t data_size)
 {
+    int err;
+
     char name[64];
-    sprintf(name, "swiotlb@%"PRIxPTR, data_base);
+    err = fdt_format_memory_name(name, sizeof(name), "swiotlb", data_base);
+    if (err) {
+        ZF_LOGE("fdt_format_memory_name() failed (%d)", err);
+        return -FDT_ERR_INTERNAL;
+    }
 
     char path[256];
     sprintf(path, "/reserved-memory/%s", name);
@@ -114,7 +132,7 @@ static int fdt_get_swiotlb_node(void *fdt, uintptr_t data_base,
         return err;
     }
 
-    return fdt_generate_reserved_node(fdt, name, "restricted-dma-pool",
+    return fdt_generate_reserved_node(fdt, "swiotlb", "restricted-dma-pool",
                                       data_base, data_size, NULL);
 }
 
@@ -136,12 +154,34 @@ static uint32_t fdt_get_swiotlb_phandle(void *fdt, uintptr_t data_base,
     return phandle;
 }
 
-int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn)
+int fdt_format_memory_name(char *name, size_t len, const char *prefix,
+                           uintptr_t base)
 {
+    return fdt_format(name, len, "%s@%"PRIxPTR, prefix, base);
+}
+
+int fdt_format_pci_devfn_name(char *name, size_t len, const char *prefix,
+                              uint32_t devfn)
+{
+    return fdt_format(name, len, "%s@%u,%u", prefix, PCI_SLOT(devfn),
+                      PCI_FUNC(devfn));
+}
+
+int fdt_generate_pci_node(void *fdt, const char *prefix, uint32_t devfn)
+{
+    int err;
+
     int root_offset = fdt_path_offset(fdt, "/pci");
     if (root_offset < 0) {
         ZF_LOGE("fdt_path_offset() failed (%d)", root_offset);
         return root_offset;
+    }
+
+    char name[64];
+    err = fdt_format_pci_devfn_name(name, sizeof(name), prefix, devfn);
+    if (err) {
+        ZF_LOGE("fdt_format_pci_devfn_name() failed (%d)", err);
+        return -FDT_ERR_INTERNAL;
     }
 
     int this = fdt_add_subnode(fdt, root_offset, name);
@@ -155,7 +195,7 @@ int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn)
      *
      * For now, we also assume bus is always zero.
      */
-    int err = fdt_appendprop_u32(fdt, this, "reg", (devfn & 0xff) << 8);
+    err = fdt_appendprop_u32(fdt, this, "reg", (devfn & 0xff) << 8);
     for (int j = 0; !err && j < 4; j++) {
         err = fdt_appendprop_u32(fdt, this, "reg", 0);
     }
@@ -170,9 +210,6 @@ int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn)
 int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t data_base,
                              size_t data_size)
 {
-    char name[64];
-    sprintf(name, "virtio%d", PCI_SLOT(devfn));
-
     if (guest_ram_base == data_base && guest_ram_size == data_size) {
         /* SWIOTLB not used */
         return 0;
@@ -185,7 +222,7 @@ int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t data_base,
         return -1;
     }
 
-    int this = fdt_generate_pci_node(fdt, name, devfn);
+    int this = fdt_generate_pci_node(fdt, "virtio", devfn);
     if (this <= 0) {
         ZF_LOGE("fdt_generate_pci_node() failed (%d)", this);
         return -1;
