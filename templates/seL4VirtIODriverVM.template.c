@@ -60,7 +60,6 @@ io_proxy_t vm/*? dev.id ?*/_io_proxy = {
     .ctrl_base = /*? dev.ctrl_base ?*/,
     .ctrl_size = /*? dev.ctrl_size ?*/,
     .run = vm/*? dev.id ?*/_io_proxy_run,
-    .backend_id = /*? dev.id ?*/,
     .iobuf_page_get = vm/*? dev.id ?*/_iobuf_page_get,
     .backend_notify = vm/*? dev.id ?*/_backend_notify,
 };

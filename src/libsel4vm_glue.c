@@ -221,10 +221,10 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
     return 0;
 }
 
-static pcidev_t *pcidev_find(unsigned int backend_id, uint32_t backend_devfn)
+static pcidev_t *pcidev_find(io_proxy_t *io_proxy, uint32_t backend_devfn)
 {
     for (int i = 0; i < pci_dev_count; i++) {
-        if (pci_devs[i]->io_proxy->backend_id == backend_id
+        if (pci_devs[i]->io_proxy == io_proxy
             && pci_devs[i]->backend_devfn == backend_devfn) {
             return pci_devs[i];
         }
@@ -232,7 +232,7 @@ static pcidev_t *pcidev_find(unsigned int backend_id, uint32_t backend_devfn)
     return NULL;
 }
 
-static int pcidev_intx_set(unsigned int backend_id, uint32_t backend_devfn,
+static int pcidev_intx_set(io_proxy_t *io_proxy, uint32_t backend_devfn,
                            bool level)
 {
     /* slot must map to irq */
@@ -242,10 +242,10 @@ static int pcidev_intx_set(unsigned int backend_id, uint32_t backend_devfn,
         return -1;
     }
 
-    pcidev_t *pcidev = pcidev_find(backend_id, backend_devfn);
+    pcidev_t *pcidev = pcidev_find(io_proxy, backend_devfn);
     if (!pcidev) {
-        ZF_LOGE("Backend %u does not contain PCI devfn 0x%"PRIx32,
-                backend_id, backend_devfn);
+        ZF_LOGE("Backend %p does not contain PCI devfn 0x%"PRIx32,
+                io_proxy, backend_devfn);
         return -1;
     }
 
@@ -259,10 +259,10 @@ static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
 
     switch (QEMU_OP(msg->mr0)) {
     case QEMU_OP_SET_IRQ:
-        err = pcidev_intx_set(io_proxy->backend_id, PCI_DEVFN(msg->mr1, 0), true);
+        err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), true);
         break;
     case QEMU_OP_CLR_IRQ:
-        err = pcidev_intx_set(io_proxy->backend_id, PCI_DEVFN(msg->mr1, 0), false);
+        err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), false);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
         err = pcidev_register(pci, io_proxy, PCI_DEVFN(msg->mr1, 0));
