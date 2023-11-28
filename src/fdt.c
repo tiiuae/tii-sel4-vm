@@ -167,13 +167,11 @@ static int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn)
     return this;
 }
 
-int fdt_generate_virtio_node(void *fdt, unsigned int idx, uintptr_t data_base,
+int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t data_base,
                              size_t data_size)
 {
-    uint32_t devfn = PCI_DEVFN(idx, 0);
-
     char name[64];
-    sprintf(name, "virtio%d", idx);
+    sprintf(name, "virtio%d", PCI_SLOT(devfn));
 
     if (guest_ram_base == data_base && guest_ram_size == data_size) {
         /* SWIOTLB not used */
