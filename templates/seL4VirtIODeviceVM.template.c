@@ -58,6 +58,8 @@ static void init_cross_vm_connections(vm_t *vm, void *cookie)
 
 /*- if vm_virtio_drivers|length > 0 -*/
 DEFINE_MODULE(cross_vm_connections, NULL, init_cross_vm_connections)
+DEFINE_MODULE_DEP(cross_vm_connections, vpci_init)
+DEFINE_MODULE_DEP(vpci_register_devices, cross_vm_connections)
 /*- endif -*/
 
 const char *append_vm_virtio_device_cmdline(char *buffer)

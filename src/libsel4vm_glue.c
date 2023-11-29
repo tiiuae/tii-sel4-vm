@@ -30,26 +30,11 @@
 
 #include <virtioarm/virtio_plat.h>
 
-#define PCI_NUM_SLOTS   (32)
-#define PCI_NUM_PINS    (4)
-/* Bridge consumes one slot */
-#define PCI_NUM_AVAIL_DEVICES   (PCI_NUM_SLOTS - 1)
-
 #define INTERRUPT_PCI_INTX_BASE (VIRTIO_CON_PLAT_INTERRUPT_LINE)
 
 typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, rpcmsg_t *msg);
 
 extern vka_t _vka;
-
-/************************* PCI typedefs begin here **************************/
-
-typedef struct pcidev {
-    uint32_t devfn;
-    uint32_t backend_devfn;
-    io_proxy_t *io_proxy;
-} pcidev_t;
-
-/************************** PCI typedefs end here ***************************/
 
 /************************** PCI externs begin here **************************/
 
@@ -65,8 +50,8 @@ static shared_irq_line_t pci_intx[PCI_NUM_PINS];
 
 /*********************** PCI declarations begin here ************************/
 
-static pcidev_t *pci_devs[PCI_NUM_AVAIL_DEVICES];
-static unsigned int pci_dev_count;
+pcidev_t *pci_devs[PCI_NUM_AVAIL_DEVICES];
+unsigned int pci_dev_count;
 
 /************************ PCI declarations end here *************************/
 
