@@ -136,7 +136,7 @@ static uint32_t fdt_get_swiotlb_phandle(void *fdt, uintptr_t data_base,
     return phandle;
 }
 
-static int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn)
+int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn)
 {
     int root_offset = fdt_path_offset(fdt, "/pci");
     if (root_offset < 0) {

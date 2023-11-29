@@ -65,6 +65,9 @@ io_proxy_t vm/*? dev.id ?*/_io_proxy = {
 };
 
 DEFINE_MODULE(vm/*? dev.id ?*/_io_proxy, &vm/*? dev.id ?*/_io_proxy, camkes_io_proxy_module_init)
+/* vpci modules are in vm/components/VM_Arm/src/modules/pci.c */
+DEFINE_MODULE_DEP(vm/*? dev.id ?*/_io_proxy, vpci_init)
+DEFINE_MODULE_DEP(vpci_register_devices, vm/*? dev.id ?*/_io_proxy)
 /*- endfor -*/
 
 int ram_dataport_setup(void)

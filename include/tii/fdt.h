@@ -24,3 +24,5 @@ int fdt_generate_reserved_node(void *fdt, const char *name,
 
 int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t base,
                              size_t size);
+
+int fdt_generate_pci_node(void *fdt, const char *name, uint32_t devfn);
