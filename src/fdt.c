@@ -10,6 +10,7 @@
 
 #include <tii/fdt.h>
 #include <tii/pci.h>
+#include <tii/guest.h>
 
 #define fdt_format(_buf, _len, _fmt, ...) ({ \
     int _n = snprintf(_buf, _len, _fmt, ##__VA_ARGS__); \
