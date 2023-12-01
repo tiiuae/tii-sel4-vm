@@ -39,7 +39,6 @@ typedef struct io_proxy {
     uintptr_t ctrl_base;
     size_t ctrl_size;
     uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
-    void *dtb_buf;
     vka_t *vka;
     ioack_t ioacks[SEL4_MAX_IOREQS];
 } io_proxy_t;

@@ -137,24 +137,6 @@ static int fdt_get_swiotlb_node(void *fdt, uintptr_t data_base,
                                       data_base, data_size, NULL);
 }
 
-static uint32_t fdt_get_swiotlb_phandle(void *fdt, uintptr_t data_base,
-                                        size_t data_size)
-{
-    int offset = fdt_get_swiotlb_node(fdt, data_base, data_size);
-    if (offset < 0) {
-        ZF_LOGE("fdt_get_swiotlb_node() failed (%d)", offset);
-        return 0;
-    }
-
-    uint32_t phandle = fdt_get_phandle(fdt, offset);
-    if (!phandle || phandle == (uint32_t)-1) {
-        ZF_LOGE("Error getting phandle for swiotlb reserved region");
-        return 0;
-    }
-
-    return phandle;
-}
-
 int fdt_format_memory_name(char *name, size_t len, const char *prefix,
                            uintptr_t base)
 {
@@ -206,34 +188,4 @@ int fdt_generate_pci_node(void *fdt, const char *prefix, uint32_t devfn)
     }
 
     return this;
-}
-
-int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t data_base,
-                             size_t data_size)
-{
-    if (guest_ram_base == data_base && guest_ram_size == data_size) {
-        /* SWIOTLB not used */
-        return 0;
-    }
-
-    uint32_t swiotlb_phandle = fdt_get_swiotlb_phandle(fdt, data_base,
-                                                       data_size);
-    if (!swiotlb_phandle) {
-        ZF_LOGE("fdt_get_swiotlb_phandle() failed");
-        return -1;
-    }
-
-    int this = fdt_generate_pci_node(fdt, "virtio", devfn);
-    if (this <= 0) {
-        ZF_LOGE("fdt_generate_pci_node() failed (%d)", this);
-        return -1;
-    }
-
-    int err = fdt_appendprop_u32(fdt, this, "memory-region", swiotlb_phandle);
-    if (err) {
-        ZF_LOGE("Can't append memory-region property: %d", this);
-        return err;
-    }
-
-    return 0;
 }
