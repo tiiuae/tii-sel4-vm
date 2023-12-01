@@ -194,13 +194,6 @@ static int pcidev_register(vmm_pci_space_t *pci, io_proxy_t *io_proxy,
     ZF_LOGI("Registering PCI devfn 0x%"PRIx32" (backend %p devfn 0x%"PRIx32")",
         pcidev->devfn, io_proxy, pcidev->backend_devfn);
 
-    err = fdt_generate_virtio_node(io_proxy->dtb_buf, pcidev->devfn,
-                                   io_proxy->data_base, io_proxy->data_size);
-    if (err) {
-        ZF_LOGE("fdt_generate_virtio_node() failed (%d)", err);
-        return -1;
-    }
-
     pci_devs[pci_dev_count++] = pcidev;
 
     return 0;

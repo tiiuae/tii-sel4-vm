@@ -9,6 +9,7 @@
 #include <sel4vm/guest_vcpu_fault.h>
 
 #include <tii/io_proxy.h>
+#include <tii/guest.h>
 
 #define mb() __sync_synchronize()
 #define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
@@ -179,6 +180,14 @@ void io_proxy_wait_for_backend(io_proxy_t *io_proxy)
 
 void io_proxy_init(io_proxy_t *io_proxy)
 {
+    int err;
+
+    err = guest_register_io_proxy(io_proxy);
+    if (err) {
+        ZF_LOGF("guest_register_io_proxy() failed (%d)", err);
+        /* no return */
+    }
+
     if (sync_sem_new(io_proxy->vka, &io_proxy->backend_started, 0)) {
         ZF_LOGF("Unable to allocate semaphore");
     }

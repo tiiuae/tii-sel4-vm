@@ -20,9 +20,6 @@ int fdt_generate_reserved_node(void *fdt, const char *prefix,
                                const char *compatible, uintptr_t base,
                                size_t size, uint32_t *phandle);
 
-int fdt_generate_virtio_node(void *fdt, uint32_t devfn, uintptr_t base,
-                             size_t size);
-
 int fdt_format_memory_name(char *buffer, size_t len, const char *prefix,
                            uintptr_t base);
 
