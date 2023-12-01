@@ -8,13 +8,11 @@
 
 #include <autoconf.h>
 
-#include <sel4vm/guest_vm.h>
-
 #include <libfdt.h>
-#include <utils/util.h>
 
-extern uintptr_t guest_ram_base;
-extern size_t guest_ram_size;
+#include <tii/guest.h>
+
+typedef struct vm vm_t;
 
 int fdt_plat_customize(vm_t *vm, void *dtb_buf);
 

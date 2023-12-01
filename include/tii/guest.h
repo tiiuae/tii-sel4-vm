@@ -7,6 +7,7 @@
 #pragma once
 
 #include <inttypes.h>
+#include <stddef.h>
 
 extern uintptr_t guest_ram_base;
 extern size_t guest_ram_size;
