@@ -8,9 +8,9 @@
 #include <vmlinux.h>
 
 #include <tii/ram_dataport.h>
+#include <tii/io_proxy.h>
 #include <tii/camkes/io_proxy.h>
 
-#include <ioreq.h>
 #include <sel4-qemu.h>
 
 /*- set vm_virtio_devices = configuration[me.name].get('vm_virtio_devices') -*/

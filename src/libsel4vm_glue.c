@@ -17,12 +17,12 @@
 #include <sel4vmmplatsupport/drivers/pci_helper.h>
 #include <pci/helper.h>
 
-#include <fdt_custom.h>
+#include <tii/fdt.h>
 #include <tii/shared_irq_line.h>
 
 #include "sel4-qemu.h"
-#include "trace.h"
-#include "ioreq.h"
+#include <tii/trace.h>
+#include <tii/io_proxy.h>
 
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>

@@ -10,7 +10,7 @@
 
 #include <vmlinux.h>
 
-#include "trace.h"
+#include <tii/trace.h>
 
 const int __attribute__((weak)) tracebuffer_base;
 const int __attribute__((weak)) tracebuffer_size;

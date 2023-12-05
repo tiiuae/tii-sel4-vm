@@ -8,7 +8,7 @@
 
 #include <libfdt.h>
 
-#include <fdt_custom.h>
+#include <tii/fdt.h>
 
 /* see linux/include/linux/pci.h */
 #define PCI_DEVFN(slot, func)  ((((slot) & 0x1f) << 3) | ((func) & 0x07))
