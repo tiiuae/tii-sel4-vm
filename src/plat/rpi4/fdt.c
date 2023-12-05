@@ -6,7 +6,7 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
-#include <fdt_custom.h>
+#include <tii/fdt.h>
 
 #define USB_PCI_NODE_PATH   "/scb/pcie@7d500000/pci@0,0"
 #define USB_NODE_NAME       "usb@0,0"

@@ -6,7 +6,7 @@
 
 #include <vmlinux.h>
 
-#include <fdt_custom.h>
+#include <tii/fdt.h>
 
 int WEAK fdt_plat_customize(vm_t *vm, void *dtb_buf)
 {

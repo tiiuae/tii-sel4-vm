@@ -8,7 +8,7 @@
 
 #include <sel4vm/guest_vcpu_fault.h>
 
-#include "ioreq.h"
+#include <tii/io_proxy.h>
 
 #define mb() __sync_synchronize()
 #define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
