@@ -63,6 +63,7 @@ assembly {
             "generate_dtb" : true,
             "provide_dtb" : false,
             "map_one_to_one" : true,
+            "clean_cache" : true,
         };
         vm0.vm_virtio_drivers = [
             VIRTIO_DRIVER_CONFIGURATION_DEF(0, 1)
@@ -150,6 +151,7 @@ assembly {
             "provide_initrd" : false,
             "generate_dtb" : true,
             "provide_dtb" : false,
+            "clean_cache" : true,
         };
         vm1.vm_virtio_devices = [
             VIRTIO_DEVICE_CONFIGURATION_DEF(0, 1)
