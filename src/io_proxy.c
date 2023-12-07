@@ -6,8 +6,6 @@
 
 #include <sync/sem.h>
 
-#include <sel4vm/guest_vcpu_fault.h>
-
 #include <tii/io_proxy.h>
 #include <tii/guest.h>
 
@@ -33,7 +31,8 @@ static int free_native_slot = SEL4_MMIO_NATIVE_BASE;
 
 static int ioreq_native_slot(io_proxy_t *io_proxy);
 static int ioreq_native_wait(uint64_t *value);
-static int ioreq_native_finish(struct sel4_ioreq *ioreq, void *cookie);
+static int ioack_native_read(seL4_Word data, void *cookie);
+static int ioack_native_write(seL4_Word data, void *cookie);
 
 static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
                                                    int slot)
@@ -44,9 +43,10 @@ static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer 
     return iobuf->request_slots + slot;
 }
 
-int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t callback,
-                void *cookie, uint32_t addr_space, unsigned int direction,
-                uintptr_t offset, size_t size, uint64_t val)
+int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
+                ioack_fn_t ioack_write, void *cookie, uint32_t addr_space,
+                unsigned int direction, uintptr_t offset, size_t size,
+                uint64_t val)
 {
     struct sel4_ioreq *ioreq;
 
@@ -61,6 +61,8 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t callback,
     if (!ioreq)
         return -1;
 
+    rpc_assert(ioack->callback == NULL);
+
     ioreq->direction = direction;
     ioreq->addr_space = addr_space;
     ioreq->addr = offset;
@@ -71,7 +73,7 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t callback,
         ioreq->data = 0;
     }
 
-    ioack->callback = callback;
+    ioack->callback = (direction == SEL4_IO_DIR_READ) ? ioack_read : ioack_write;
     ioack->cookie = cookie;
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
@@ -93,9 +95,17 @@ int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
         return -1;
     }
 
-    int err = ioack->callback(ioreq, ioack->cookie);
+    seL4_Word data = 0;
+    if (ioreq->direction == SEL4_IO_DIR_READ) {
+        assert(ioreq->len <= sizeof(data));
+        memcpy(&data, &ioreq->data, ioreq->len);
+    }
+
+    int err = ioack->callback(data, ioack->cookie);
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
+
+    ioack->callback = NULL;
 
     return err;
 }
@@ -126,16 +136,20 @@ static int ioreq_native_slot(io_proxy_t *io_proxy)
     return ioreq_native_data.slot;
 }
 
-static int ioreq_native_finish(struct sel4_ioreq *ioreq, void *cookie)
+static int ioack_native_read(seL4_Word data, void *cookie)
 {
     ioreq_native_t *native_data = cookie;
 
-    uint64_t data = 0;
+    native_data->value = data;
 
-    if (ioreq->direction == SEL4_IO_DIR_READ) {
-        memcpy(&data, &ioreq->data, ioreq->len);
-        native_data->value = data;
-    }
+    sync_sem_post(&native_data->handoff);
+
+    return 0;
+}
+
+static int ioack_native_write(seL4_Word data, void *cookie)
+{
+    ioreq_native_t *native_data = cookie;
 
     sync_sem_post(&native_data->handoff);
 
@@ -163,9 +177,9 @@ int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
         return -1;
     }
 
-    int err = ioreq_start(io_proxy, slot, ioreq_native_finish,
-                          &ioreq_native_data, addr_space, direction, addr,
-                          size, *value);
+    int err = ioreq_start(io_proxy, slot, ioack_native_read,
+                          ioack_native_write, &ioreq_native_data, addr_space,
+                          direction, addr, size, *value);
     if (err) {
         ZF_LOGE("ioreq_start() failed (%d)", err);
         return -1;
