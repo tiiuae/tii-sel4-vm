@@ -87,7 +87,7 @@ int ioreq_start(io_proxy_t *io_proxy, vm_vcpu_t *vcpu, uint32_t addr_space,
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
 
-    return slot;
+    return 0;
 }
 
 int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
