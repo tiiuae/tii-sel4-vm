@@ -361,8 +361,6 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
         return FAULT_ERROR;
     }
 
-    io_proxy_backend_notify(io_proxy);
-
     /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
 }

@@ -78,6 +78,8 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
 
+    io_proxy_backend_notify(io_proxy);
+
     return 0;
 }
 
@@ -184,8 +186,6 @@ int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
         ZF_LOGE("ioreq_start() failed (%d)", err);
         return -1;
     }
-
-    io_proxy_backend_notify(io_proxy);
 
     err = ioreq_native_wait(value);
     if (err) {
