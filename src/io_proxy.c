@@ -10,8 +10,6 @@
 #include <tii/guest.h>
 
 #define mb() __sync_synchronize()
-#define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
-#define atomic_store_release(ptr, i)  __atomic_store_n(ptr, i, __ATOMIC_RELEASE);
 
 #define ioreq_set_state(_ioreq, _state) atomic_store_release(&(_ioreq)->state, (_state))
 #define ioreq_state(_ioreq) atomic_load_acquire(&(_ioreq)->state)

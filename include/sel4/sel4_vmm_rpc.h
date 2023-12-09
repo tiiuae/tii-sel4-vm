@@ -24,6 +24,9 @@
 typedef unsigned long seL4_Word;
 #endif
 
+#define atomic_load_acquire(ptr) __atomic_load_n(ptr, __ATOMIC_ACQUIRE)
+#define atomic_store_release(ptr, i)  __atomic_store_n(ptr, i, __ATOMIC_RELEASE)
+
 #if defined(__KERNEL__)
 #define rpc_assert(_cond) BUG_ON(!(_cond))
 #else
@@ -85,6 +88,19 @@ __maybe_unused static void rpcmsg_queue_init(rpcmsg_queue_t *q)
     memset(q, 0, sizeof(*q));
 }
 
+/* we use load-acquire to make sure all loads reading the contents of message
+ * happen only after reading the head -- likewise, we use store-release to make
+ * sure all stores to message happen before we write the head.
+ */
+#define rpcmsg_queue_iterate(_qp, _msgp) \
+    unsigned int _h; \
+    for (_h = atomic_load_acquire(&(_qp)->head), \
+         (_msgp) = (_qp)->data + _h; \
+         _h != (_qp)->tail; \
+         _h = QUEUE_NEXT(_h), \
+         atomic_store_release(&(_qp)->head, _h), \
+         (_msgp) = (_qp)->data + _h)
+
 static inline bool rpcmsg_queue_full(rpcmsg_queue_t *q)
 {
     return QUEUE_NEXT(q->tail) == q->head;
@@ -95,21 +111,10 @@ static inline bool rpcmsg_queue_empty(rpcmsg_queue_t *q)
     return q->tail == q->head;
 }
 
-static inline rpcmsg_t *rpcmsg_queue_head(rpcmsg_queue_t *q)
-{
-    return rpcmsg_queue_empty(q) ? NULL : (q->data + q->head);
-}
-
 static inline rpcmsg_t *rpcmsg_queue_tail(rpcmsg_queue_t *q)
 {
 
     return rpcmsg_queue_full(q) ? NULL : (q->data + q->tail);
-}
-
-static inline void rpcmsg_queue_advance_head(rpcmsg_queue_t *q)
-{
-    rpc_assert(!rpcmsg_queue_empty(q));
-    q->head = QUEUE_NEXT(q->head);
 }
 
 static inline void rpcmsg_queue_advance_tail(rpcmsg_queue_t *q)
