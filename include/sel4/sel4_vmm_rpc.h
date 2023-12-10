@@ -182,25 +182,6 @@ static inline bool rpcmsg_queue_empty(rpcmsg_queue_t *q)
     return q->tail == q->head;
 }
 
-static inline rpcmsg_t *rpcmsg_queue_tail(rpcmsg_queue_t *q)
-{
-
-    return rpcmsg_queue_full(q) ? NULL : (q->data + q->tail);
-}
-
-static inline void rpcmsg_queue_advance_tail(rpcmsg_queue_t *q)
-{
-    rpc_assert((!rpcmsg_queue_full(q)));
-    q->tail = QUEUE_NEXT(q->tail);
-}
-
-static inline void rpcmsg_queue_enqueue(rpcmsg_queue_t *q, rpcmsg_t *msg)
-{
-    rpc_assert(!rpcmsg_queue_full(q));
-    memcpy(q->data + q->tail, msg, sizeof(*msg));
-    q->tail = QUEUE_NEXT(q->tail);
-}
-
 static inline int sel4_rpc_doorbell(sel4_rpc_t *rpc)
 {
     rpc_assert(rpc);
