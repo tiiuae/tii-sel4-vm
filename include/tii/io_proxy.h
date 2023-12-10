@@ -10,6 +10,10 @@
 #include <sel4vm/guest_vm.h>
 #include <sel4vmmplatsupport/ioports.h>
 
+#define RPCMSG_RC_ERROR -1
+#define RPCMSG_RC_NONE 0
+#define RPCMSG_RC_HANDLED 1
+
 #define VCPU_NONE NULL
 
 typedef uint8_t __u8;
