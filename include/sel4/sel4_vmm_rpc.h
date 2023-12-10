@@ -33,22 +33,22 @@ typedef unsigned long seL4_Word;
 #define rpc_assert assert
 #endif
 
-#define IOBUF_PAGE_VMM_RECV     2
-#define IOBUF_PAGE_VMM_SEND     1
+#define IOBUF_PAGE_DRIVER_RX    2
+#define IOBUF_PAGE_DRIVER_TX    1
 #define IOBUF_PAGE_VMM_MMIO     0
 
-#define IOBUF_PAGE_EMU_RECV     IOBUF_PAGE_VMM_SEND
-#define IOBUF_PAGE_EMU_SEND     IOBUF_PAGE_VMM_RECV
+#define IOBUF_PAGE_DEVICE_RX    IOBUF_PAGE_DRIVER_TX
+#define IOBUF_PAGE_DEVICE_TX    IOBUF_PAGE_DRIVER_RX
 #define IOBUF_PAGE_EMU_MMIO     0
 
 #define iobuf_page(_iobuf, _page) (((uintptr_t)(_iobuf)) + (4096 * (_page)))
 
-#define vmm_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_VMM_SEND))
-#define vmm_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_VMM_RECV))
+#define driver_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_TX))
+#define driver_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_RX))
 #define vmm_mmio_reqs(_iobuf) ((struct sel4_iohandler_buffer *)iobuf_page((_iobuf), IOBUF_PAGE_VMM_MMIO))
 
-#define emu_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_EMU_SEND))
-#define emu_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_EMU_RECV))
+#define device_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_TX))
+#define device_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_RX))
 #define emu_mmio_reqs(_iobuf) ((struct sel4_iohandler_buffer *)iobuf_page((_iobuf), IOBUF_PAGE_EMU_MMIO))
 
 /* from VMM to QEMU */
@@ -80,6 +80,13 @@ typedef struct {
     uint32_t rsvd[2];
     rpcmsg_t data[RPCMSG_BUFFER_SIZE];
 } rpcmsg_queue_t;
+
+typedef struct sel4_rpc {
+    rpcmsg_queue_t *tx_queue;
+    rpcmsg_queue_t *rx_queue;
+    void (*doorbell)(void *doorbell_cookie);
+    void *doorbell_cookie;
+} sel4_rpc_t;
 
 #define QUEUE_NEXT(_i) (((_i) + 1) & (RPCMSG_BUFFER_SIZE - 1))
 
@@ -128,4 +135,36 @@ static inline void rpcmsg_queue_enqueue(rpcmsg_queue_t *q, rpcmsg_t *msg)
     rpc_assert(!rpcmsg_queue_full(q));
     memcpy(q->data + q->tail, msg, sizeof(*msg));
     q->tail = QUEUE_NEXT(q->tail);
+}
+
+static inline int sel4_rpc_doorbell(sel4_rpc_t *rpc)
+{
+    rpc_assert(rpc);
+    rpc_assert(rpc->tx_queue);
+    rpc_assert(rpc->doorbell);
+
+    rpc->doorbell(rpc->doorbell_cookie);
+
+    return 0;
+}
+
+static inline int sel4_rpc_init(sel4_rpc_t *rpc, rpcmsg_queue_t *rx,
+                                rpcmsg_queue_t *tx,
+                                void (*doorbell)(void *doorbell_cookie),
+                                void *doorbell_cookie)
+{
+    if (!rpc || !rx || !tx || !doorbell) {
+        return -1;
+    }
+
+    rpc->rx_queue = rx;
+    rpc->tx_queue = tx;
+    rpc->doorbell = doorbell;
+    rpc->doorbell_cookie = doorbell_cookie;
+
+    /* note that we do not initialize the queues themselves -- they are
+     * initialized statically on boot and dynamically on VM reboot
+     */
+
+    return 0;
 }
