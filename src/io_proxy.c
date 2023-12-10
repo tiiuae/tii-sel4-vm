@@ -9,8 +9,6 @@
 #include <tii/io_proxy.h>
 #include <tii/guest.h>
 
-#define mb() __sync_synchronize()
-
 #define ioreq_set_state(_ioreq, _state) atomic_store_release(&(_ioreq)->state, (_state))
 #define ioreq_state(_ioreq) atomic_load_acquire(&(_ioreq)->state)
 
@@ -76,7 +74,7 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
 
     ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
 
-    io_proxy_backend_notify(io_proxy);
+    sel4_rpc_doorbell(&io_proxy->rpc);
 
     return 0;
 }
@@ -215,9 +213,4 @@ void io_proxy_init(io_proxy_t *io_proxy)
     if (sync_sem_new(io_proxy->vka, &io_proxy->backend_started, 0)) {
         ZF_LOGF("Unable to allocate semaphore");
     }
-
-    for (unsigned i = 0; i < SEL4_MAX_IOREQS; i++) {
-        ioreq_set_state(ioreq_slot_to_ptr(io_proxy->iobuf, i), SEL4_IOREQ_STATE_FREE);
-    }
-    mb();
 }

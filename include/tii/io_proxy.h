@@ -34,8 +34,7 @@ typedef struct io_proxy {
     sync_sem_t backend_started;
     int ok_to_run;
     struct sel4_iohandler_buffer *iobuf;
-    rpcmsg_queue_t *rx_queue;
-    void (*backend_notify)(struct io_proxy *io_proxy);
+    sel4_rpc_t rpc;
     int (*run)(struct io_proxy *io_proxy);
     guest_reserved_memory_t *data_plane;
     uintptr_t ctrl_base;
@@ -44,11 +43,6 @@ typedef struct io_proxy {
     vka_t *vka;
     ioack_t ioacks[SEL4_MMIO_MAX_VCPU + SEL4_MMIO_MAX_NATIVE];
 } io_proxy_t;
-
-static inline void io_proxy_backend_notify(io_proxy_t *io_proxy)
-{
-    io_proxy->backend_notify(io_proxy);
-}
 
 static inline int io_proxy_run(io_proxy_t *io_proxy)
 {

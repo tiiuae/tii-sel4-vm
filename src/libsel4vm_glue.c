@@ -295,7 +295,7 @@ int rpc_run(io_proxy_t *io_proxy)
 {
     rpcmsg_t *msg;
 
-    rpcmsg_queue_iterate(io_proxy->rx_queue, msg) {
+    rpcmsg_queue_iterate(io_proxy->rpc.rx_queue, msg) {
         int rc = 0;
         for (rpc_callback_fn_t *cb = rpc_callbacks; !rc && *cb; cb++) {
             rc = (*cb)(io_proxy, msg);
