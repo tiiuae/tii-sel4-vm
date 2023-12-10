@@ -29,6 +29,7 @@ static int ioreq_native_slot(io_proxy_t *io_proxy);
 static int ioreq_native_wait(uint64_t *value);
 static int ioack_native_read(seL4_Word data, void *cookie);
 static int ioack_native_write(seL4_Word data, void *cookie);
+static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data);
 
 static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
                                                    int slot)
@@ -79,29 +80,15 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
     return 0;
 }
 
-int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot)
+static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data)
 {
-    struct sel4_ioreq *ioreq;
+    rpc_assert(slot <= ARRAY_SIZE(io_proxy->ioacks));
 
-    assert(io_proxy && io_proxy->iobuf);
-
-    ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
     ioack_t *ioack = &io_proxy->ioacks[slot];
-    assert(ioreq);
 
-    if (!ioreq_state_complete(ioreq)) {
-        return -1;
-    }
-
-    seL4_Word data = 0;
-    if (ioreq->direction == SEL4_IO_DIR_READ) {
-        assert(ioreq->len <= sizeof(data));
-        memcpy(&data, &ioreq->data, ioreq->len);
-    }
+    rpc_assert(ioack->callback);
 
     int err = ioack->callback(data, ioack->cookie);
-
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
 
     ioack->callback = NULL;
 
@@ -213,4 +200,32 @@ void io_proxy_init(io_proxy_t *io_proxy)
     if (sync_sem_new(io_proxy->vka, &io_proxy->backend_started, 0)) {
         ZF_LOGF("Unable to allocate semaphore");
     }
+}
+
+int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
+{
+    if (op != QEMU_OP_IO_HANDLED) {
+        return RPCMSG_RC_NONE;
+    }
+
+    unsigned int slot = msg->mr1;
+    seL4_Word data = 0;
+
+    struct sel4_ioreq *ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
+    assert(ioreq);
+
+    if (!ioreq_state_complete(ioreq)) {
+        return RPCMSG_RC_ERROR;
+    }
+
+    if (ioreq->direction == SEL4_IO_DIR_READ) {
+        assert(ioreq->len <= sizeof(data));
+        memcpy(&data, &ioreq->data, ioreq->len);
+    }
+
+    int err = ioreq_finish(io_proxy, slot, data);
+
+    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
+
+    return err ? RPCMSG_RC_ERROR : RPCMSG_RC_HANDLED;
 }
