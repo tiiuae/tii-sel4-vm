@@ -257,20 +257,6 @@ static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 
 /**************************** PCI code ends here ****************************/
 
-static int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
-{
-    if (op != QEMU_OP_IO_HANDLED) {
-        return RPCMSG_RC_NONE;
-    }
-
-    int err = ioreq_finish(io_proxy, msg->mr1);
-    if (err) {
-        return RPCMSG_RC_ERROR;
-    }
-
-    return RPCMSG_RC_HANDLED;
-}
-
 static int handle_control(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
     switch (op) {

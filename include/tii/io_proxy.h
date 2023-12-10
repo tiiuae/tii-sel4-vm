@@ -63,8 +63,6 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
                 unsigned int direction, uintptr_t addr, size_t size,
                 seL4_Word val);
 
-int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot);
-
 int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
                  unsigned int direction, uintptr_t offset, size_t len,
                  uint64_t *value);
@@ -76,3 +74,5 @@ void io_proxy_init(io_proxy_t *io_proxy);
 int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy);
 
 int rpc_run(io_proxy_t *io_proxy);
+
+int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg);
