@@ -31,7 +31,8 @@
 
 #define INTERRUPT_PCI_INTX_BASE (VIRTIO_CON_PLAT_INTERRUPT_LINE)
 
-typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, rpcmsg_t *msg);
+typedef int (*rpc_callback_fn_t)(io_proxy_t *io_proxy, unsigned int op,
+                                 rpcmsg_t *msg);
 
 extern vka_t _vka;
 
@@ -229,11 +230,11 @@ static int pcidev_intx_set(io_proxy_t *io_proxy, uint32_t backend_devfn,
                                   PCI_SLOT(pcidev->devfn), level);
 }
 
-static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
+static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
-    int err = 0;
+    int err;
 
-    switch (QEMU_OP(msg->mr0)) {
+    switch (op) {
     case QEMU_OP_SET_IRQ:
         err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), true);
         break;
@@ -244,44 +245,44 @@ static int handle_pci(io_proxy_t *io_proxy, rpcmsg_t *msg)
         err = pcidev_register(pci, io_proxy, PCI_DEVFN(msg->mr1, 0));
         break;
     default:
-        return 0;
+        return RPCMSG_RC_NONE;
     }
 
     if (err) {
-        return -1;
+        return RPCMSG_RC_ERROR;
     }
 
-    return 1;
+    return RPCMSG_RC_HANDLED;
 }
 
 /**************************** PCI code ends here ****************************/
 
-static int handle_mmio(io_proxy_t *io_proxy, rpcmsg_t *msg)
+static int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
-    if (QEMU_OP(msg->mr0) != QEMU_OP_IO_HANDLED) {
-        return 0;
+    if (op != QEMU_OP_IO_HANDLED) {
+        return RPCMSG_RC_NONE;
     }
 
     int err = ioreq_finish(io_proxy, msg->mr1);
     if (err) {
-        return -1;
+        return RPCMSG_RC_ERROR;
     }
 
-    return 1;
+    return RPCMSG_RC_HANDLED;
 }
 
-static int handle_control(io_proxy_t *io_proxy, rpcmsg_t *msg)
+static int handle_control(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
-    switch (QEMU_OP(msg->mr0)) {
+    switch (op) {
     case QEMU_OP_START_VM:
         io_proxy->ok_to_run = 1;
         sync_sem_post(&io_proxy->backend_started);
         break;
     default:
-        return 0;
+        return RPCMSG_RC_NONE;
     }
 
-    return 1;
+    return RPCMSG_RC_HANDLED;
 }
 
 static rpc_callback_fn_t rpc_callbacks[] = {
@@ -296,15 +297,21 @@ int rpc_run(io_proxy_t *io_proxy)
     rpcmsg_t *msg;
 
     rpcmsg_queue_iterate(io_proxy->rpc.rx_queue, msg) {
-        int rc = 0;
-        for (rpc_callback_fn_t *cb = rpc_callbacks; !rc && *cb; cb++) {
-            rc = (*cb)(io_proxy, msg);
+        unsigned int op = QEMU_OP(msg->mr0);
+
+        int rc = RPCMSG_RC_NONE;
+        for (rpc_callback_fn_t *cb = rpc_callbacks;
+             rc == RPCMSG_RC_NONE && *cb; cb++) {
+            rc = (*cb)(io_proxy, op, msg);
         }
-        if (rc == -1) {
+
+        if (rc == RPCMSG_RC_ERROR) {
             return -1;
         }
-        if (rc == 0) {
-            ZF_LOGW("Unknown RPC message %u", QEMU_OP(msg->mr0));
+
+        if (rc == RPCMSG_RC_NONE) {
+            ZF_LOGE("Unknown RPC message %u", op);
+            return -1;
         }
     }
 
