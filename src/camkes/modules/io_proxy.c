@@ -24,7 +24,6 @@ void camkes_io_proxy_module_init(vm_t *vm, void *cookie)
     guest_ram_base = vm_config.ram.base;
     guest_ram_size = vm_config.ram.size;
 
-    io_proxy->iobuf = (struct sel4_iohandler_buffer *)io_proxy_iobuf_page(io_proxy, IOBUF_PAGE_VMM_MMIO);
     io_proxy->rpc.rx_queue = (rpcmsg_queue_t *)io_proxy_iobuf_page(io_proxy, IOBUF_PAGE_DRIVER_RX);
     io_proxy->rpc.tx_queue = (rpcmsg_queue_t *)io_proxy_iobuf_page(io_proxy, IOBUF_PAGE_DRIVER_TX);
     io_proxy->vka = &_vka;

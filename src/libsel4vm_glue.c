@@ -283,6 +283,15 @@ int rpc_run(io_proxy_t *io_proxy)
     rpcmsg_t *msg;
 
     rpcmsg_queue_iterate(io_proxy->rpc.rx_queue, msg) {
+        unsigned int state = rpcmsg_state_get(msg);
+
+        if (state == RPCMSG_STATE_COMPLETE) {
+            rpc_assert(!"logic error");
+        } else if (state == RPCMSG_STATE_RESERVED) {
+            /* device side is crafting message, let's continue later */
+            break;
+        }
+
         unsigned int op = BIT_FIELD_GET(msg->mr0, RPC_MR0_OP);
 
         int rc = RPCMSG_RC_NONE;
@@ -299,6 +308,8 @@ int rpc_run(io_proxy_t *io_proxy)
             ZF_LOGE("Unknown RPC message %u", op);
             return -1;
         }
+
+        rpcmsg_state_set(msg, RPCMSG_STATE_COMPLETE);
     }
 
     return 0;
@@ -331,11 +342,11 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
     io_proxy_t *io_proxy = cookie;
 
     unsigned int dir = SEL4_IO_DIR_READ;
-    uint64_t value = 0;
+    seL4_Word value = 0;
 
     if (!is_vcpu_read_fault(vcpu)) {
         seL4_Word s = (get_vcpu_fault_address(vcpu) & 0x3) * 8;
-        uint64_t mask = get_vcpu_fault_data_mask(vcpu) >> s;
+        seL4_Word mask = get_vcpu_fault_data_mask(vcpu) >> s;
         value = get_vcpu_fault_data(vcpu) & mask;
         dir = SEL4_IO_DIR_WRITE;
     }
@@ -348,7 +359,6 @@ static memory_fault_result_t mmio_fault_handler(vm_t *vm, vm_vcpu_t *vcpu,
         return FAULT_ERROR;
     }
 
-    /* Let's not advance the fault here -- the reply from QEMU does that */
     return FAULT_HANDLED;
 }
 

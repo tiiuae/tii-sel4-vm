@@ -13,9 +13,6 @@ struct sel4_vm_params {
 	__u64   id;
 };
 
-#define SEL4_MAX_IOREQS			32
-#define SEL4_MAX_VCPUS			(SEL4_MAX_IOREQS)
-#define SEL4_IOREQ_MMAP_SIZE		4096
 #define SEL4_MMIO_MAX_VCPU		16
 #define SEL4_MMIO_NATIVE_BASE		SEL4_MMIO_MAX_VCPU
 #define SEL4_MMIO_MAX_NATIVE		16
@@ -23,33 +20,8 @@ struct sel4_vm_params {
 #define SEL4_IO_DIR_READ		RPC_MR0_MMIO_DIRECTION_READ
 #define SEL4_IO_DIR_WRITE		RPC_MR0_MMIO_DIRECTION_WRITE
 
-#define SEL4_IOREQ_STATE_FREE		0U
-#define SEL4_IOREQ_STATE_PENDING	1U
-#define SEL4_IOREQ_STATE_PROCESSING	2U
-#define SEL4_IOREQ_STATE_COMPLETE	3U
-
 #define AS_GLOBAL           MASK(RPC_MR0_MMIO_ADDR_SPACE_WIDTH)
 #define AS_PCIDEV(__pcidev) (__pcidev)
-
-struct sel4_ioreq {
-	__u16   state;
-	__u16	direction;
-	__u32   addr_space;
-	__u64	addr;
-	__u64	len;
-	__u64	data;
-} __attribute__((packed, aligned(128)));
-
-
-#define SEL4_IOREQ_SLOT_VALID(_slot) \
-	((_slot) >= 0 && (_slot) < (SEL4_MAX_IOREQS))
-
-struct sel4_iohandler_buffer {
-	union {
-		struct sel4_ioreq	request_slots[SEL4_MAX_IOREQS];
-		__u8			reserved[SEL4_IOREQ_MMAP_SIZE];
-	};
-};
 
 struct sel4_vpci_device {
 	__u32	pcidev;

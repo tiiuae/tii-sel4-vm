@@ -9,12 +9,6 @@
 #include <tii/io_proxy.h>
 #include <tii/guest.h>
 
-#define ioreq_set_state(_ioreq, _state) atomic_store_release(&(_ioreq)->state, (_state))
-#define ioreq_state(_ioreq) atomic_load_acquire(&(_ioreq)->state)
-
-#define ioreq_state_complete(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_COMPLETE)
-#define ioreq_state_free(_ioreq) (ioreq_state((_ioreq)) == SEL4_IOREQ_STATE_FREE)
-
 typedef struct ioreq_native {
     int slot;
     sync_sem_t handoff;
@@ -31,53 +25,27 @@ static int ioack_native_read(seL4_Word data, void *cookie);
 static int ioack_native_write(seL4_Word data, void *cookie);
 static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data);
 
-static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
-                                                   int slot)
-{
-    if (!ioreq_slot_valid(slot))
-        return NULL;
-
-    return iobuf->request_slots + slot;
-}
-
 int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
                 ioack_fn_t ioack_write, void *cookie, uint32_t addr_space,
                 unsigned int direction, uintptr_t offset, size_t size,
                 uint64_t val)
 {
-    struct sel4_ioreq *ioreq;
-
-    assert(io_proxy && io_proxy->iobuf && size >= 0 && size <= sizeof(val));
+    assert(io_proxy && size >= 0 && size <= sizeof(val));
 
     if (slot >= ARRAY_SIZE(io_proxy->ioacks)) {
         return -1;
     }
 
-    ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
     ioack_t *ioack = &io_proxy->ioacks[slot];
-    if (!ioreq)
-        return -1;
 
     rpc_assert(ioack->callback == NULL);
-
-    ioreq->direction = direction;
-    ioreq->addr_space = addr_space;
-    ioreq->addr = offset;
-    ioreq->len = size;
-    if (direction == SEL4_IO_DIR_WRITE) {
-        memcpy(&ioreq->data, &val, size);
-    } else {
-        ioreq->data = 0;
-    }
 
     ioack->callback = (direction == SEL4_IO_DIR_READ) ? ioack_read : ioack_write;
     ioack->cookie = cookie;
 
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_PENDING);
-
-    sel4_rpc_doorbell(&io_proxy->rpc);
-
-    return 0;
+    return sel4_rpc_doorbell(device_req_mmio_start(&io_proxy->rpc, direction,
+                                                   addr_space, slot, offset,
+                                                   size, val));
 }
 
 static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data)
@@ -208,24 +176,10 @@ int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
         return RPCMSG_RC_NONE;
     }
 
-    unsigned int slot = msg->mr1;
-    seL4_Word data = 0;
-
-    struct sel4_ioreq *ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
-    assert(ioreq);
-
-    if (!ioreq_state_complete(ioreq)) {
-        return RPCMSG_RC_ERROR;
-    }
-
-    if (ioreq->direction == SEL4_IO_DIR_READ) {
-        assert(ioreq->len <= sizeof(data));
-        memcpy(&data, &ioreq->data, ioreq->len);
-    }
+    unsigned int slot = BIT_FIELD_GET(msg->mr0, RPC_MR0_MMIO_SLOT);
+    seL4_Word data = msg->mr2;
 
     int err = ioreq_finish(io_proxy, slot, data);
-
-    ioreq_set_state(ioreq, SEL4_IOREQ_STATE_FREE);
 
     return err ? RPCMSG_RC_ERROR : RPCMSG_RC_HANDLED;
 }

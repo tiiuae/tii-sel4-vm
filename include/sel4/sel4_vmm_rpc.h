@@ -31,23 +31,19 @@ typedef unsigned long seL4_Word;
 #define rpc_assert(_cond) assert(_cond)
 #endif
 
-#define IOBUF_PAGE_DRIVER_RX    2
-#define IOBUF_PAGE_DRIVER_TX    1
-#define IOBUF_PAGE_VMM_MMIO     0
+#define IOBUF_PAGE_DRIVER_RX    1
+#define IOBUF_PAGE_DRIVER_TX    0
 
 #define IOBUF_PAGE_DEVICE_RX    IOBUF_PAGE_DRIVER_TX
 #define IOBUF_PAGE_DEVICE_TX    IOBUF_PAGE_DRIVER_RX
-#define IOBUF_PAGE_EMU_MMIO     0
 
 #define iobuf_page(_iobuf, _page) (((uintptr_t)(_iobuf)) + (4096 * (_page)))
 
 #define driver_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_TX))
 #define driver_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_RX))
-#define vmm_mmio_reqs(_iobuf) ((struct sel4_iohandler_buffer *)iobuf_page((_iobuf), IOBUF_PAGE_VMM_MMIO))
 
 #define device_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_TX))
 #define device_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_RX))
-#define emu_mmio_reqs(_iobuf) ((struct sel4_iohandler_buffer *)iobuf_page((_iobuf), IOBUF_PAGE_EMU_MMIO))
 
 #ifndef MASK
 #define MASK(_n)                        ((1UL << (_n)) - 1)

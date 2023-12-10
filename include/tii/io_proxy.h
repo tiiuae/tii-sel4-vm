@@ -25,8 +25,6 @@ typedef uint64_t __u64;
 
 #include <tii/guest.h>
 
-#define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
-
 typedef int (*ioack_fn_t)(seL4_Word data, void *cookie);
 
 typedef struct ioack {
@@ -37,7 +35,6 @@ typedef struct ioack {
 typedef struct io_proxy {
     sync_sem_t backend_started;
     int ok_to_run;
-    struct sel4_iohandler_buffer *iobuf;
     sel4_rpc_t rpc;
     int (*run)(struct io_proxy *io_proxy);
     guest_reserved_memory_t *data_plane;
