@@ -204,7 +204,7 @@ void io_proxy_init(io_proxy_t *io_proxy)
 
 int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
-    if (op != QEMU_OP_IO_HANDLED) {
+    if (op != RPC_MR0_OP_MMIO) {
         return RPCMSG_RC_NONE;
     }
 

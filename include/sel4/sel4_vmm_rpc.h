@@ -71,19 +71,14 @@ typedef unsigned long seL4_Word;
 #define RPC_MR0_OP_WIDTH                6
 #define RPC_MR0_OP_SHIFT                0
 
-/* from VMM to QEMU */
-#define QEMU_OP_IO_HANDLED  0
-#define QEMU_OP_PUTC_LOG    2
+/* start/finish MMIO access */
+#define RPC_MR0_OP_MMIO                 0
 
-/* from QEMU to VMM */
-#define QEMU_OP_SET_IRQ     16
-#define QEMU_OP_CLR_IRQ     17
-#define QEMU_OP_START_VM    18
-#define QEMU_OP_REGISTER_PCI_DEV    19
-
-#define QEMU_OP_MASK        0xffULL
-#define QEMU_OP_SHIFT       0
-#define QEMU_OP(__x__)      ((unsigned int)(((__x__) & QEMU_OP_MASK) >> QEMU_OP_SHIFT))
+/* from device to driver */
+#define RPC_MR0_OP_SET_IRQ              16
+#define RPC_MR0_OP_CLR_IRQ              17
+#define RPC_MR0_OP_START_VM             18
+#define RPC_MR0_OP_REGISTER_PCI_DEV     19
 
 #define RPCMSG_BUFFER_SIZE  32
 

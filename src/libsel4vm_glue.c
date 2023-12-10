@@ -235,13 +235,13 @@ static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
     int err;
 
     switch (op) {
-    case QEMU_OP_SET_IRQ:
+    case RPC_MR0_OP_SET_IRQ:
         err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), true);
         break;
-    case QEMU_OP_CLR_IRQ:
+    case RPC_MR0_OP_CLR_IRQ:
         err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), false);
         break;
-    case QEMU_OP_REGISTER_PCI_DEV:
+    case RPC_MR0_OP_REGISTER_PCI_DEV:
         err = pcidev_register(pci, io_proxy, PCI_DEVFN(msg->mr1, 0));
         break;
     default:
@@ -260,7 +260,7 @@ static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 static int handle_control(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
     switch (op) {
-    case QEMU_OP_START_VM:
+    case RPC_MR0_OP_START_VM:
         io_proxy->ok_to_run = 1;
         sync_sem_post(&io_proxy->backend_started);
         break;
@@ -283,7 +283,7 @@ int rpc_run(io_proxy_t *io_proxy)
     rpcmsg_t *msg;
 
     rpcmsg_queue_iterate(io_proxy->rpc.rx_queue, msg) {
-        unsigned int op = QEMU_OP(msg->mr0);
+        unsigned int op = BIT_FIELD_GET(msg->mr0, RPC_MR0_OP);
 
         int rc = RPCMSG_RC_NONE;
         for (rpc_callback_fn_t *cb = rpc_callbacks;
