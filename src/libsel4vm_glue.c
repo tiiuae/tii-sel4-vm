@@ -23,6 +23,7 @@
 #include <tii/trace.h>
 #include <tii/io_proxy.h>
 #include <tii/pci.h>
+#include <tii/emulated_device.h>
 
 #include <sel4vmmplatsupport/ioports.h>
 #include <sel4vmmplatsupport/arch/vpci.h>
@@ -236,9 +237,15 @@ static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 
     switch (op) {
     case QEMU_OP_SET_IRQ:
+        if (!irq_is_pci(msg->mr1))
+            return RPCMSG_RC_NONE;
+
         err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), true);
         break;
     case QEMU_OP_CLR_IRQ:
+        if (!irq_is_pci(msg->mr1))
+            return RPCMSG_RC_NONE;
+
         err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), false);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
@@ -274,6 +281,7 @@ static int handle_control(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 static rpc_callback_fn_t rpc_callbacks[] = {
     handle_mmio,
     handle_pci,
+    handle_emudev,
     handle_control,
     NULL,
 };
@@ -395,6 +403,12 @@ int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
     int err = irq_init(vm);
     if (err) {
         ZF_LOGE("irq_init() failed");
+        return -1;
+    }
+
+    err = emudev_init(vm, mmio_fault_handler);
+    if (err) {
+        ZF_LOGE("emudev_init() failed");
         return -1;
     }
 
