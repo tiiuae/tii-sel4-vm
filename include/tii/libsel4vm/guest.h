@@ -9,4 +9,5 @@
 typedef struct guest_config {
     vm_t *vm;
     void *dtb;
+    bool generate_dtb;
 } guest_config_t;
