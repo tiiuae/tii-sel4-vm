@@ -149,8 +149,14 @@ assembly {
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
+#if USERVMDTB
+            "generate_dtb" : false,
+            "provide_dtb" : true,
+            "dtb_name" : "user-vm.dtb",
+#else
             "generate_dtb" : true,
             "provide_dtb" : false,
+#endif
             "clean_cache" : true,
         };
         vm1.vm_virtio_devices = [

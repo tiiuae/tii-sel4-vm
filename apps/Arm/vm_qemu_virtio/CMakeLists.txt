@@ -11,8 +11,24 @@ project(vm-qemu-virtio C)
 
 include(${TII_CAMKES_VM_HELPERS_PATH})
 
+config_option(
+    UserVmDtb
+    USE_USERVM_DTB_FILE
+    "Use provided user-vm dtb file instead of generated one"
+    DEFAULT
+    OFF
+)
+AddCamkesCPPFlag(cpp_flags CONFIG_VARS UserVmDtb)
+
 AddToFileServer("linux" "${VM_IMAGE_LINUX}")
 AddToFileServer("linux-initrd" ${VM_IMAGE_INITRD})
+
+if(UserVmDtb)
+    set(USERVM_DTB_FILE "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/user-vm.dtb"
+        CACHE STRING "User-vm device tree to use over generated one")
+
+    AddToFileServer("user-vm.dtb" "${USERVM_DTB_FILE}")
+endif()
 
 DefineCAmkESVMFileServer()
 
