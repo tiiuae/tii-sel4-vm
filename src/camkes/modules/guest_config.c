@@ -15,6 +15,7 @@ static void camkes_guest_configure(vm_t *vm, void *cookie)
     guest_config_t config = {
         .vm = vm,
         .dtb = cookie,
+        .generate_dtb = vm_config.generate_dtb,
     };
 
     int err = guest_configure(&config);

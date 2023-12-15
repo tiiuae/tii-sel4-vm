@@ -56,6 +56,10 @@ int guest_configure(void *cookie)
         return -1;
     }
 
+    if (!config->generate_dtb) {
+        return 0;
+    }
+
     err = fdt_generate_reserved_memory_nodes(config->dtb);
     if (err) {
         ZF_LOGE("fdt_generate_reserved_memory_nodes() failed (%d)", err);
