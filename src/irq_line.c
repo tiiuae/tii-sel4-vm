@@ -32,3 +32,12 @@ int irq_line_change(irq_line_t *line, bool active)
 {
     return vm_set_irq_level(line->vcpu, line->irq, active);
 }
+
+int irq_line_pulse(irq_line_t *line)
+{
+    int err = vm_set_irq_level(line->vcpu, line->irq, true);
+    if (err) {
+        return err;
+    }
+    return vm_set_irq_level(line->vcpu, line->irq, false);
+}
