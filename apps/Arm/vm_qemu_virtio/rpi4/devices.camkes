@@ -55,7 +55,6 @@ assembly {
                 "rw "
                 "debug "
                 "loglevel=7 "
-                "pci=nomsi "
                 "nosmp "
                 "cma=64M "
                 "initcall_blacklist=clk_disable_unused ",
@@ -145,7 +144,6 @@ assembly {
                 "rw "
                 "debug "
                 "loglevel=8 "
-                "pci=nomsi "
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
