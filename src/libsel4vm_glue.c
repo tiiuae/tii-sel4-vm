@@ -23,6 +23,7 @@
 #include <tii/trace.h>
 #include <tii/io_proxy.h>
 #include <tii/pci.h>
+#include <tii/msi.h>
 #include <tii/emulated_device.h>
 
 #include <sel4vmmplatsupport/ioports.h>
@@ -280,6 +281,7 @@ static int handle_control(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 
 static rpc_callback_fn_t rpc_callbacks[] = {
     handle_mmio,
+    handle_msi,
     handle_pci,
     handle_emudev,
     handle_control,
@@ -403,6 +405,12 @@ int libsel4vm_io_proxy_init(vm_t *vm, io_proxy_t *io_proxy)
     int err = irq_init(vm);
     if (err) {
         ZF_LOGE("irq_init() failed");
+        return -1;
+    }
+
+    err = msi_init(vm);
+    if (err) {
+        ZF_LOGE("msi_init() failed");
         return -1;
     }
 
