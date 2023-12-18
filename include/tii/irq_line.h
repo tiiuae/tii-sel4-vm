@@ -37,3 +37,10 @@ int irq_line_init(irq_line_t *line, vm_vcpu_t *vcpu, unsigned int irq,
  * @return                              Zero on success, non-zero on failure
  */
 int irq_line_change(irq_line_t *line, bool active);
+
+/***
+ * @function irq_line_pulse(line)
+ * @param {irq_line_t *} line           Pointer to IRQ line object
+ * @return                              Zero on success, non-zero on failure
+ */
+int irq_line_pulse(irq_line_t *line);
