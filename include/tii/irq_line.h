@@ -31,7 +31,7 @@ int irq_line_init(irq_line_t *line, vm_vcpu_t *vcpu, unsigned int irq,
                   void *cookie);
 
 /***
- * @function irq_line_change(line, source, active)
+ * @function irq_line_change(line, active)
  * @param {irq_line_t *} line           Pointer to IRQ line object
  * @param {bool} active                 New logic level
  * @return                              Zero on success, non-zero on failure
