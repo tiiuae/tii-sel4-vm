@@ -31,13 +31,13 @@ static int ioack_native_read(seL4_Word data, void *cookie);
 static int ioack_native_write(seL4_Word data, void *cookie);
 static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data);
 
-static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_iohandler_buffer *iobuf,
+static inline struct sel4_ioreq *ioreq_slot_to_ptr(struct sel4_ioreq *mmio_reqs,
                                                    int slot)
 {
     if (!ioreq_slot_valid(slot))
         return NULL;
 
-    return iobuf->request_slots + slot;
+    return mmio_reqs + slot;
 }
 
 int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
@@ -47,13 +47,13 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
 {
     struct sel4_ioreq *ioreq;
 
-    assert(io_proxy && io_proxy->iobuf && size >= 0 && size <= sizeof(val));
+    assert(io_proxy && io_proxy->mmio_reqs && size >= 0 && size <= sizeof(val));
 
     if (slot >= ARRAY_SIZE(io_proxy->ioacks)) {
         return -1;
     }
 
-    ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
+    ioreq = ioreq_slot_to_ptr(io_proxy->mmio_reqs, slot);
     ioack_t *ioack = &io_proxy->ioacks[slot];
     if (!ioreq)
         return -1;
@@ -191,6 +191,12 @@ void io_proxy_init(io_proxy_t *io_proxy)
 {
     int err;
 
+    uintptr_t iobuf_addr = io_proxy->iobuf_get(io_proxy);
+
+    io_proxy->mmio_reqs = driver_mmio_reqs(iobuf_addr);
+    io_proxy->rpc.rx_queue = driver_rx_queue(iobuf_addr);
+    io_proxy->rpc.tx_queue = driver_tx_queue(iobuf_addr);
+
     err = guest_register_io_proxy(io_proxy);
     if (err) {
         ZF_LOGF("guest_register_io_proxy() failed (%d)", err);
@@ -211,7 +217,7 @@ int handle_mmio(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
     unsigned int slot = msg->mr1;
     seL4_Word data = 0;
 
-    struct sel4_ioreq *ioreq = ioreq_slot_to_ptr(io_proxy->iobuf, slot);
+    struct sel4_ioreq *ioreq = ioreq_slot_to_ptr(io_proxy->mmio_reqs, slot);
     assert(ioreq);
 
     if (!ioreq_state_complete(ioreq)) {

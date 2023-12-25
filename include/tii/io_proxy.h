@@ -37,13 +37,13 @@ typedef struct ioack {
 typedef struct io_proxy {
     sync_sem_t backend_started;
     int ok_to_run;
-    struct sel4_iohandler_buffer *iobuf;
+    struct sel4_ioreq *mmio_reqs;
     sel4_rpc_t rpc;
     int (*run)(struct io_proxy *io_proxy);
     guest_reserved_memory_t *data_plane;
     uintptr_t ctrl_base;
     size_t ctrl_size;
-    uintptr_t (*iobuf_page_get)(struct io_proxy *io_proxy, unsigned int page);
+    uintptr_t (*iobuf_get)(struct io_proxy *io_proxy);
     vka_t *vka;
     ioack_t ioacks[SEL4_MMIO_MAX_VCPU + SEL4_MMIO_MAX_NATIVE];
 } io_proxy_t;
@@ -51,11 +51,6 @@ typedef struct io_proxy {
 static inline int io_proxy_run(io_proxy_t *io_proxy)
 {
     return io_proxy->run(io_proxy);
-}
-
-static uintptr_t io_proxy_iobuf_page(io_proxy_t *io_proxy, unsigned int page)
-{
-    return io_proxy->iobuf_page_get(io_proxy, page);
 }
 
 int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,

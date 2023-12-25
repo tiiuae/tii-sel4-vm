@@ -1,5 +1,5 @@
 /*
- * Copyright 2022, Technology Innovation Institute
+ * Copyright 2022, 2023, Technology Innovation Institute
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -33,23 +33,25 @@ typedef unsigned long seL4_Word;
 #define rpc_assert assert
 #endif
 
-#define IOBUF_PAGE_DRIVER_RX    2
-#define IOBUF_PAGE_DRIVER_TX    1
-#define IOBUF_PAGE_VMM_MMIO     0
+#define IOBUF_NUM_PAGES             3
 
-#define IOBUF_PAGE_DEVICE_RX    IOBUF_PAGE_DRIVER_TX
-#define IOBUF_PAGE_DEVICE_TX    IOBUF_PAGE_DRIVER_RX
-#define IOBUF_PAGE_EMU_MMIO     0
+#define IOBUF_PAGE_DRIVER_RX        1
+#define IOBUF_PAGE_DRIVER_TX        0
+#define IOBUF_PAGE_DRIVER_MMIO      2
 
-#define iobuf_page(_iobuf, _page) (((uintptr_t)(_iobuf)) + (4096 * (_page)))
+#define IOBUF_PAGE_DEVICE_RX        IOBUF_PAGE_DRIVER_TX
+#define IOBUF_PAGE_DEVICE_TX        IOBUF_PAGE_DRIVER_RX
+#define IOBUF_PAGE_DEVICE_MMIO      IOBUF_PAGE_DRIVER_MMIO
 
-#define driver_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_TX))
-#define driver_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_RX))
-#define vmm_mmio_reqs(_iobuf) ((struct sel4_iohandler_buffer *)iobuf_page((_iobuf), IOBUF_PAGE_VMM_MMIO))
+#define iobuf_page(_iobuf, _page)   (((uintptr_t)(_iobuf)) + (4096 * (_page)))
 
-#define device_tx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_TX))
-#define device_rx_queue(_iobuf) ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_RX))
-#define emu_mmio_reqs(_iobuf) ((struct sel4_iohandler_buffer *)iobuf_page((_iobuf), IOBUF_PAGE_EMU_MMIO))
+#define driver_tx_queue(_iobuf)     ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_TX))
+#define driver_rx_queue(_iobuf)     ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_RX))
+#define driver_mmio_reqs(_iobuf)    ((struct sel4_ioreq *)iobuf_page((_iobuf), IOBUF_PAGE_DRIVER_MMIO))
+
+#define device_tx_queue(_iobuf)     ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_TX))
+#define device_rx_queue(_iobuf)     ((rpcmsg_queue_t *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_RX))
+#define device_mmio_reqs(_iobuf)    ((struct sel4_ioreq *)iobuf_page((_iobuf), IOBUF_PAGE_DEVICE_MMIO))
 
 /* from VMM to QEMU */
 #define QEMU_OP_IO_HANDLED  0

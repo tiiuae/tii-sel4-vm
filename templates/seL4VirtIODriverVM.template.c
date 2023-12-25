@@ -20,13 +20,9 @@ extern void *vm/*? dev.id ?*/_iobuf;
 
 ram_dataport_t __attribute__((section("_ram_dataport_definition"))) vm/*? dev.id ?*/_ram_dataport;
 
-static uintptr_t vm/*? dev.id ?*/_iobuf_page_get(io_proxy_t *io_proxy, unsigned int page)
+static uintptr_t vm/*? dev.id ?*/_iobuf_get(io_proxy_t *io_proxy)
 {
-    uintptr_t addr = (uintptr_t)vm/*? dev.id ?*/_iobuf;
-
-    addr += page * 4096;
-
-    return addr;
+    return (uintptr_t)vm/*? dev.id ?*/_iobuf;
 }
 
 static void vm/*? dev.id ?*/_notify(void *cookie)
@@ -68,7 +64,7 @@ io_proxy_t vm/*? dev.id ?*/_io_proxy = {
     .ctrl_base = /*? dev.ctrl_base ?*/,
     .ctrl_size = /*? dev.ctrl_size ?*/,
     .run = vm/*? dev.id ?*/_io_proxy_run,
-    .iobuf_page_get = vm/*? dev.id ?*/_iobuf_page_get,
+    .iobuf_get = vm/*? dev.id ?*/_iobuf_get,
     .rpc = {
         /* queue addresses need to be filled in run time */
         .doorbell = vm/*? dev.id ?*/_notify,
