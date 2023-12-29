@@ -60,6 +60,8 @@ unsigned int pci_dev_count;
 
 /************************ PCI declarations end here *************************/
 
+const unsigned int my_rpcmsg_state = RPCMSG_STATE_DRIVER;
+
 /*************************** PCI code begins here ***************************/
 
 /* Interrupt mapping
@@ -288,30 +290,34 @@ static rpc_callback_fn_t rpc_callbacks[] = {
     NULL,
 };
 
-int rpc_run(io_proxy_t *io_proxy)
+static unsigned int rpc_process(rpcmsg_t *msg, void *cookie)
 {
-    rpcmsg_t *msg;
+    io_proxy_t *io_proxy = cookie;
 
-    rpcmsg_queue_iterate(io_proxy->rpc.rx_queue, msg) {
-        unsigned int op = QEMU_OP(msg->mr0);
+    unsigned int op = QEMU_OP(msg->mr0);
 
-        int rc = RPCMSG_RC_NONE;
-        for (rpc_callback_fn_t *cb = rpc_callbacks;
-             rc == RPCMSG_RC_NONE && *cb; cb++) {
-            rc = (*cb)(io_proxy, op, msg);
-        }
-
-        if (rc == RPCMSG_RC_ERROR) {
-            return -1;
-        }
-
-        if (rc == RPCMSG_RC_NONE) {
-            ZF_LOGE("Unknown RPC message %u", op);
-            return -1;
-        }
+    int rc = RPCMSG_RC_NONE;
+    for (rpc_callback_fn_t *cb = rpc_callbacks;
+         rc == RPCMSG_RC_NONE && *cb; cb++) {
+        rc = (*cb)(io_proxy, op, msg);
     }
 
-    return 0;
+    if (rc == RPCMSG_RC_ERROR) {
+        ZF_LOGE("RPC failed for message %u", op);
+        return RPCMSG_STATE_ERROR;
+    }
+
+    if (rc == RPCMSG_RC_NONE) {
+        ZF_LOGE("Unknown RPC message %u", op);
+        return RPCMSG_STATE_ERROR;
+    }
+
+    return RPCMSG_STATE_FREE;
+}
+
+int rpc_run(io_proxy_t *io_proxy)
+{
+    return rpcmsg_queue_iterate(io_proxy->rpc.rx_queue, rpc_process, io_proxy);
 }
 
 static int ioack_vcpu_read(seL4_Word data, void *cookie)
