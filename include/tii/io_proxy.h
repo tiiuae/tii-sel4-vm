@@ -25,7 +25,9 @@ typedef uint64_t __u64;
 
 #include <tii/guest.h>
 
-#define ioreq_slot_valid(_slot) SEL4_IOREQ_SLOT_VALID((_slot))
+#define SEL4_MMIO_MAX_VCPU              16
+#define SEL4_MMIO_NATIVE_BASE           SEL4_MMIO_MAX_VCPU
+#define SEL4_MMIO_MAX_NATIVE            16
 
 typedef int (*ioack_fn_t)(seL4_Word data, void *cookie);
 
@@ -37,7 +39,6 @@ typedef struct ioack {
 typedef struct io_proxy {
     sync_sem_t backend_started;
     int ok_to_run;
-    struct sel4_ioreq *mmio_reqs;
     sel4_rpc_t rpc;
     int (*run)(struct io_proxy *io_proxy);
     guest_reserved_memory_t *data_plane;
