@@ -16,12 +16,15 @@ file(
     GLOB
         tii_sel4vm_sources
         src/*.c
-if(KernelPlatformRpi4)
-        src/plat/rpi4/*.c
-else()
-        src/plat/${KernelPlatform}/*.c
-endif()
 )
+
+if(KernelPlatformRpi4)
+    file(GLOB plat_deps src/plat/rpi4/*.c)
+else()
+    file(GLOB plat_deps src/plat/${KernelPlatform}/*.c)
+endif()
+list(APPEND tii_sel4vm_sources ${plat_deps})
+
 
 add_library(tii_sel4vm OBJECT ${tii_sel4vm_sources})
 
