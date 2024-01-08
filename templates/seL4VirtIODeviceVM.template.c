@@ -53,7 +53,8 @@ static void init_cross_vm_connections(vm_t *vm, void *cookie)
     ZF_LOGF_IF(err, "Failed to register_async_event_handler for init_cross_vm_connections.");
 /*- endfor -*/
 
-    cross_vm_connections_init(vm, CONNECTION_BASE_ADDRESS, connections, ARRAY_SIZE(connections));
+    err = cross_vm_connections_init(vm, CONNECTION_BASE_ADDRESS, connections, ARRAY_SIZE(connections));
+    ZF_LOGF_IF(err, "init_cross_vm_connections() failed");
 }
 
 /*- if vm_virtio_drivers|length > 0 -*/
