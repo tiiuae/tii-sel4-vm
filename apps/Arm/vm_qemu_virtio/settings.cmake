@@ -18,16 +18,22 @@ set(VmVirtioNetVirtqueue OFF CACHE BOOL "" FORCE)
 set(VmInitRdFile ON CACHE BOOL "" FORCE)
 set(UserVmDtb OFF CACHE BOOL "" FORCE)
 if("${PLATFORM}" STREQUAL "qemu-arm-virt")
+    # Set machine for image paths
+    set(VM_IMAGE_MACHINE "qemuarm64")
     set(QEMU_MEMORY "2048")
     set(KernelArmCPU cortex-a53 CACHE STRING "" FORCE)
     set(qemu_sim_extra_args "-netdev tap,id=mynet0,ifname=tap0,script=no,downscript=no -device virtio-net,netdev=mynet0,mac=52:55:00:d1:55:01")
     set(KernelArmExportPCNTUser ON CACHE BOOL "" FORCE)
     set(KernelArmExportPTMRUser ON CACHE BOOL "" FORCE)
 elseif("${PLATFORM}" STREQUAL "rpi4")
+    # Set machine for image paths
+    set(VM_IMAGE_MACHINE "vm-raspberrypi4-64")
+
     set(KernelCustomDTS
         "${CMAKE_CURRENT_LIST_DIR}/../../../hardware/${PLATFORM}/dts/rpi4.dts"
         CACHE FILEPATH "" FORCE)
     set(KernelCustomDTSOverlay
         "${CMAKE_CURRENT_LIST_DIR}/../../../hardware/${PLATFORM}/dts/overlay-rpi4.dts"
         CACHE FILEPATH "" FORCE)
+
 endif()
