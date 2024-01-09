@@ -12,7 +12,7 @@
 #include <sel4vmmplatsupport/drivers/cross_vm_connection.h>
 
 #ifdef CONFIG_PLAT_QEMU_ARM_VIRT
-#define CONNECTION_BASE_ADDRESS 0xDF000000
+#define CONNECTION_BASE_ADDRESS 0xC0000000
 #elif CONFIG_PLAT_BCM2711
 #define CONNECTION_BASE_ADDRESS 0x60000000
 #else

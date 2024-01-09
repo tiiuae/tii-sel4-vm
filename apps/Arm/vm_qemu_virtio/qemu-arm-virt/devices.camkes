@@ -1,0 +1,140 @@
+/*
+ * Copyright 2024 Technology Innovation Institute
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#include <configurations/tii/vm.h>
+
+#define GUEST_ENTRY_OFFSET  0x200000
+
+#define VM_INITRD_MAX_SIZE  0x1000000   // 32 MB
+#define VM_DTB_MAX_SIZE     0x0100000   // 16 MB
+
+#define VM0_RAM_BASE    0x40000000
+#define VM0_RAM_SIZE    0x8000000
+#define VM0_DTB_ADDR    VM0_RAM_BASE + VM0_RAM_SIZE - VM_DTB_MAX_SIZE
+#define VM0_INITRD_ADDR VM0_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM0_ENTRY_ADDR  VM0_RAM_BASE + GUEST_ENTRY_OFFSET
+
+#define VM1_RAM_BASE    0x48000000
+#define VM1_RAM_SIZE    0x8000000
+#define VM1_DTB_ADDR    VM1_RAM_BASE + VM1_RAM_SIZE - VM_DTB_MAX_SIZE
+#define VM1_INITRD_ADDR VM1_DTB_ADDR - VM_INITRD_MAX_SIZE
+#define VM1_ENTRY_ADDR  VM1_RAM_BASE + GUEST_ENTRY_OFFSET
+
+#if VMSWIOTLB
+#define VM0_VM1_VIRTIO_DATA_BASE        VM1_RAM_BASE + VM1_RAM_SIZE
+#define VM0_VM1_VIRTIO_DATA_SIZE        0x800000    // 8 MB
+#else
+#define VM0_VM1_VIRTIO_DATA_BASE        VM1_RAM_BASE
+#define VM0_VM1_VIRTIO_DATA_SIZE        VM1_RAM_SIZE
+#endif
+
+#define VM0_VM1_VIRTIO_CTRL_BASE        0xC0000000
+#define VM0_VM1_VIRTIO_CTRL_SIZE        0x00080000
+
+
+assembly {
+    composition {}
+    configuration {
+
+        VIRTIO_CONFIGURATION_DEF(0, 1)
+
+        vm0.vm_address_config = {
+            "ram_base" : VAR_STRINGIZE(VM0_RAM_BASE),
+            "ram_paddr_base" : VAR_STRINGIZE(VM0_RAM_BASE),
+            "ram_size" : VAR_STRINGIZE(VM0_RAM_SIZE),
+            "dtb_addr" : VAR_STRINGIZE(VM0_DTB_ADDR),
+            "initrd_addr" : VAR_STRINGIZE(VM0_INITRD_ADDR),
+            "kernel_entry_addr" : VAR_STRINGIZE(VM0_ENTRY_ADDR),
+        };
+        vm0.num_vcpus = 1;
+
+        vm0.vm_image_config = {
+            "kernel_bootcmdline" :
+                "console=hvc0 "
+                "earlycon=pl011,mmio32,0x09000000 "
+                "rw "
+                "debug "
+                "loglevel=7 "
+                "nosmp "
+                "pci=nomsi,realloc=off "
+                "initcall_blacklist=clk_disable_unused "
+                "root=/dev/vda",
+            "kernel_stdout" : "/pl011@9000000",
+            "generate_dtb" : true,
+            "provide_dtb" : false,
+            "clean_cache" : true,
+        };
+
+        vm0.vm_virtio_drivers = [
+            VIRTIO_DRIVER_CONFIGURATION_DEF(0, 1)
+        ];
+
+        vm0.mmios = [
+            "0x8040000:0x1000:12",
+        ];
+        vm0.untyped_mmios = [
+            "0x10040000:17", // QEMU PCI MMIO
+            "0x3eff0000:16", // QEMU PCI IO ports
+            "0x8000000000:39", // QEMU PCI MMIO
+            "0x40000000:27", // Linux kernel memory regions
+        ];
+
+        vm0.simple_untyped24_pool = 12;
+        vm0.dtb_irqs = [35, 36, 37, 38];
+        vm0.dtb = dtb([
+            {"path": "/pl011@9000000"},
+            {"path": "/pcie@10000000"},
+        ]);
+
+        vm1.vm_address_config = {
+            "ram_base" : VAR_STRINGIZE(VM1_RAM_BASE),
+            "ram_paddr_base" : VAR_STRINGIZE(VM1_RAM_BASE),
+            "ram_size" : VAR_STRINGIZE(VM1_RAM_SIZE),
+            "dtb_addr" : VAR_STRINGIZE(VM1_DTB_ADDR),
+            "initrd_addr" : VAR_STRINGIZE(VM1_INITRD_ADDR),
+            "kernel_entry_addr" : VAR_STRINGIZE(VM1_ENTRY_ADDR),
+        };
+        vm1.vm_image_config = {
+            "kernel_bootcmdline" :
+                "console=hvc0 "
+                "earlycon=pl011,mmio32,0x09000000 "
+                "root=/dev/vda1 "
+                "rw "
+                "debug "
+                "pci=nomsi,realloc=off "
+                "loglevel=8 "
+                "initcall_blacklist=clk_disable_unused ",
+            "kernel_stdout" : "hvc0",
+            "provide_initrd" : false,
+#if USERVMDTB
+            "generate_dtb" : false,
+            "provide_dtb" : true,
+            "dtb_name" : "user-vm.dtb",
+#else
+            "generate_dtb" : true,
+            "provide_dtb" : false,
+#endif
+            "clean_cache" : true,
+        };
+        vm1.vm_virtio_devices = [
+            VIRTIO_DEVICE_CONFIGURATION_DEF(0, 1)
+        ];
+        vm1.mmios = [
+            "0x8040000:0x1000:12"
+        ];
+
+        /* debug serial */
+        vm1.pl011 = 0x9000000;
+
+        VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(1)
+        vm1.simple_untyped12_pool = 12;
+
+        vm1.irqs =  [];
+        vm1.dtb = dtb([
+            { "path": "/reserved-memory"},
+        ]);
+
+    }
+}

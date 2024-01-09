@@ -20,13 +20,15 @@ set(UserVmDtb OFF CACHE BOOL "" FORCE)
 if("${PLATFORM}" STREQUAL "qemu-arm-virt")
     # Set machine for image paths
     set(VM_IMAGE_MACHINE "qemuarm64")
+
     set(ARM_CPU "cortex-a57")
     set(QEMU_MEMORY "2048")
 
-    set(qemu_sim_extra_args "-netdev tap,id=mynet0,ifname=tap0,script=no,downscript=no -device virtio-net,netdev=mynet0,mac=52:55:00:d1:55:01")
+    set(qemu_sim_extra_args "-smp 2 -netdev user,id=net0 -device virtio-net-pci,netdev=net0,mac=52:55:00:d1:55:01 -drive id=disk0,file=${VM_IMAGES_DIR}/${VM_IMAGE_MACHINE}/vm-image-driver-${VM_IMAGE_MACHINE}.ext4,if=none,format=raw -device virtio-blk-pci,drive=disk0")
 
     set(KernelArmExportPCNTUser ON CACHE BOOL "" FORCE)
     set(KernelArmExportPTMRUser ON CACHE BOOL "" FORCE)
+
 elseif("${PLATFORM}" STREQUAL "rpi4")
     # Set machine for image paths
     set(VM_IMAGE_MACHINE "vm-raspberrypi4-64")

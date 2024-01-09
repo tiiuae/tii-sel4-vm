@@ -23,6 +23,14 @@ AddCamkesCPPFlag(cpp_flags CONFIG_VARS UserVmDtb)
 AddToFileServer("linux" "${VM_IMAGE_LINUX}")
 AddToFileServer("linux-initrd" ${VM_IMAGE_INITRD})
 
+if("${KernelARMPlatform}" STREQUAL "qemu-arm-virt")
+    include(simulation)
+    set(SIMULATION ON CACHE BOOL "Generate simulation script to run qemu with the proper arguments")
+    if(SIMULATION)
+        GenerateSimulateScript()
+    endif()
+endif()
+
 if(UserVmDtb)
     set(USERVM_DTB_FILE "${CMAKE_CURRENT_LIST_DIR}/${PLATFORM}/user-vm.dtb"
         CACHE STRING "User-vm device tree to use over generated one")
