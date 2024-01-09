@@ -164,6 +164,9 @@ assembly {
             "0xff846000:0x1000:12"
         ];
 
+        /* debug serial */
+        vm1.pl011 = 0x9000000;
+
         VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(1)
 
         vm1.irqs =  [];
