@@ -81,7 +81,7 @@ assembly {
             "0x40000000:27", // Linux kernel memory regions
         ];
 
-        vm0.simple_untyped24_pool = 12;
+        vm0.simple_untyped24_pool = 5;
         vm0.dtb_irqs = [35, 36, 37, 38];
         vm0.dtb = dtb([
             {"path": "/pl011@9000000"},

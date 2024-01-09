@@ -85,7 +85,7 @@
 #if VMSWIOTLB
 #define VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(_num) \
         /* additional 16 MB pages for guest RAM */ \
-        vm##_num.simple_untyped24_pool = 12 + (VM##_num##_RAM_SIZE >> 24);
+        vm##_num.simple_untyped24_pool = 2 + (VM##_num##_RAM_SIZE >> 24);
 #else
 #define VIRTIO_DRIVER_GUEST_RAM_CONFIGURATION_DEF(_num) \
         /* this setting predates merging ARM VMM to camkes-vm repo */ \
