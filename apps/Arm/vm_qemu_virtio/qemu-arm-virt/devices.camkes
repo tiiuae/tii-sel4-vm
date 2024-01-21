@@ -135,5 +135,9 @@ assembly {
             { "path": "/reserved-memory"},
         ]);
 
+        vm1.pci_config = {
+            "fdt_msi_node_path": "/intc@8000000/v2m@8020000",
+        };
+
     }
 }
