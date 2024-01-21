@@ -103,7 +103,6 @@ assembly {
                 "root=/dev/vda1 "
                 "rw "
                 "debug "
-                "pci=nomsi,realloc=off "
                 "loglevel=8 "
                 "initcall_blacklist=clk_disable_unused ",
             "kernel_stdout" : "hvc0",
