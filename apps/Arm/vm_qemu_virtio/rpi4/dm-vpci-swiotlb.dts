@@ -25,6 +25,7 @@
 		reg = <0x01 0x00 0x1000000>;
 		/* use swiotlb */
 		memory-region = <0x46>;
+		msi-parent = <&v2m>;
 	};
 
 
