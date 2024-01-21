@@ -136,6 +136,7 @@ assembly {
         ]);
 
         vm1.pci_config = {
+            "use_ecam": true,
             "fdt_msi_node_path": "/intc@8000000/v2m@8020000",
         };
 
