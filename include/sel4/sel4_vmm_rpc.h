@@ -147,6 +147,8 @@ typedef struct {
 typedef struct sel4_rpc {
     rpcmsg_queue_t *tx_queue;
     rpcmsg_queue_t *rx_queue;
+    /* the message state this is hooked to */
+    unsigned int my_state;
     void (*doorbell)(void *doorbell_cookie);
     void *doorbell_cookie;
 } sel4_rpc_t;
@@ -158,10 +160,9 @@ __maybe_unused static void rpcmsg_queue_init(rpcmsg_queue_t *q)
     memset(q, 0, sizeof(*q));
 }
 
-extern const unsigned int my_rpcmsg_state;
-
 static inline
 int rpcmsg_queue_iterate(rpcmsg_queue_t *q,
+                         unsigned int handler_state,
                          unsigned int (*fn)(rpcmsg_t *msg, void *cookie),
                          void *cookie)
 {
@@ -179,7 +180,7 @@ int rpcmsg_queue_iterate(rpcmsg_queue_t *q,
 
         state = rpcmsg_state_get(msg);
         if (state != RPCMSG_STATE_FREE) {
-            if (state != my_rpcmsg_state) {
+            if (state != handler_state) {
                 break;
             }
 
@@ -200,12 +201,19 @@ int rpcmsg_queue_iterate(rpcmsg_queue_t *q,
     return 0;
 }
 
+static inline int sel4_rpc_rx_process(sel4_rpc_t *rpc,
+                                      unsigned int (*fn)(rpcmsg_t *msg, void *cookie),
+                                      void *cookie)
+{
+    return rpcmsg_queue_iterate(rpc->rx_queue, rpc->my_state, fn, cookie);
+}
+
 static inline void plat_yield(void)
 {
     /* TODO */
 }
 
-static inline rpcmsg_t *rpcmsg_new(rpcmsg_queue_t *q)
+static inline rpcmsg_t *rpcmsg_new(rpcmsg_queue_t *q, unsigned int state)
 {
     unsigned int tail, next;
 
@@ -231,7 +239,7 @@ static inline rpcmsg_t *rpcmsg_new(rpcmsg_queue_t *q)
          */
     } while (!atomic_compare_and_swap(rpcmsg_state_ptr(q->data + tail),
                                       RPCMSG_STATE_FREE,
-                                      my_rpcmsg_state));
+                                      state));
 
     /* since we modified state of message pointed by tail, we want that
      * store to finish before updating tail.
@@ -268,10 +276,10 @@ static inline int rpcmsg_send(sel4_rpc_t *rpc, unsigned int op,
                               seL4_Word mr0, seL4_Word mr1,
                               seL4_Word mr2, seL4_Word mr3)
 {
-    rpcmsg_t *msg = rpcmsg_new(rpc->tx_queue);
+    rpcmsg_t *msg = rpcmsg_new(rpc->tx_queue, rpc->my_state);
 
     rpc_assert(msg);
-    rpc_assert(rpcmsg_state_get(msg) == my_rpcmsg_state);
+    rpc_assert(rpcmsg_state_get(msg) == rpc->my_state);
 
     mr0 = BIT_FIELD_SET(mr0, RPC_MR0_STATE, rpcmsg_state_get(msg));
     mr0 = BIT_FIELD_SET(mr0, RPC_MR0_OP, op);
@@ -281,7 +289,7 @@ static inline int rpcmsg_send(sel4_rpc_t *rpc, unsigned int op,
     msg->mr2 = mr2;
     msg->mr3 = mr3;
 
-    if (my_rpcmsg_state == RPCMSG_STATE_DRIVER) {
+    if (rpc->my_state == RPCMSG_STATE_DRIVER) {
         rpcmsg_state_set(msg, RPCMSG_STATE_DEVICE_KERNEL);
     } else {
         rpcmsg_state_set(msg, RPCMSG_STATE_DRIVER);
@@ -347,6 +355,7 @@ static inline int device_req_mmio_start(sel4_rpc_t *rpc, unsigned int direction,
 
 static inline int sel4_rpc_init(sel4_rpc_t *rpc, rpcmsg_queue_t *rx,
                                 rpcmsg_queue_t *tx,
+                                unsigned int handler_state,
                                 void (*doorbell)(void *doorbell_cookie),
                                 void *doorbell_cookie)
 {
@@ -356,6 +365,7 @@ static inline int sel4_rpc_init(sel4_rpc_t *rpc, rpcmsg_queue_t *rx,
 
     rpc->rx_queue = rx;
     rpc->tx_queue = tx;
+    rpc->my_state = handler_state;
     rpc->doorbell = doorbell;
     rpc->doorbell_cookie = doorbell_cookie;
 

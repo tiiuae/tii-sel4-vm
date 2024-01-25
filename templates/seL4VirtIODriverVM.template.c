@@ -66,6 +66,7 @@ io_proxy_t vm/*? dev.id ?*/_io_proxy = {
     .run = vm/*? dev.id ?*/_io_proxy_run,
     .iobuf_get = vm/*? dev.id ?*/_iobuf_get,
     .rpc = {
+        .my_state = RPCMSG_STATE_DRIVER,
         /* queue addresses need to be filled in run time */
         .doorbell = vm/*? dev.id ?*/_notify,
         .doorbell_cookie = &vm/*? dev.id ?*/_io_proxy,

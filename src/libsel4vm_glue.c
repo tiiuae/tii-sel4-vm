@@ -60,8 +60,6 @@ unsigned int pci_dev_count;
 
 /************************ PCI declarations end here *************************/
 
-const unsigned int my_rpcmsg_state = RPCMSG_STATE_DRIVER;
-
 /*************************** PCI code begins here ***************************/
 
 /* Interrupt mapping
@@ -317,7 +315,7 @@ static unsigned int rpc_process(rpcmsg_t *msg, void *cookie)
 
 int rpc_run(io_proxy_t *io_proxy)
 {
-    return rpcmsg_queue_iterate(io_proxy->rpc.rx_queue, rpc_process, io_proxy);
+    return sel4_rpc_rx_process(&io_proxy->rpc, rpc_process, io_proxy);
 }
 
 static int ioack_vcpu_read(seL4_Word data, void *cookie)
