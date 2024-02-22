@@ -288,7 +288,7 @@ static rpc_callback_fn_t rpc_callbacks[] = {
     NULL,
 };
 
-static unsigned int rpc_process(rpcmsg_t *msg, void *cookie)
+static int rpc_process(rpcmsg_t *msg, void *cookie)
 {
     io_proxy_t *io_proxy = cookie;
 
@@ -302,15 +302,13 @@ static unsigned int rpc_process(rpcmsg_t *msg, void *cookie)
 
     if (rc == RPCMSG_RC_ERROR) {
         ZF_LOGE("RPC failed for message %u", op);
-        return RPCMSG_STATE_ERROR;
-    }
-
-    if (rc == RPCMSG_RC_NONE) {
+        return -1;
+    } else if (rc == RPCMSG_RC_NONE) {
         ZF_LOGE("Unknown RPC message %u", op);
-        return RPCMSG_STATE_ERROR;
+        return -1;
     }
 
-    return RPCMSG_STATE_FREE;
+    return 0;
 }
 
 int rpc_run(io_proxy_t *io_proxy)
