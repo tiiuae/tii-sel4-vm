@@ -21,7 +21,7 @@ typedef uint16_t __u16;
 typedef uint32_t __u32;
 typedef uint64_t __u64;
 
-#include "sel4_virt_types.h"
+#include "sel4/sel4_virt_types.h"
 
 #include <tii/guest.h>
 
