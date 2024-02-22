@@ -17,13 +17,23 @@ static gicv2m_t v2m = {
     .num_irq = 32,
 };
 
-int msi_irq_set(uint32_t irq, bool active)
+int msi_irq_set(uint32_t irq, uint32_t op)
 {
     if (!v2m_irq_valid(&v2m, irq)) {
         return RPCMSG_RC_NONE;
     }
 
-    if (active && v2m_inject_irq(&v2m, irq)) {
+    switch (op) {
+    case RPC_IRQ_SET: /* fall through */
+    case RPC_IRQ_PULSE:
+        if(v2m_inject_irq(&v2m, irq)) {
+            return RPCMSG_RC_ERROR;
+        }
+        break;
+    case RPC_IRQ_CLR: /* nop */
+        break;
+    default:
+        ZF_LOGE("invalid irq operation %u", op);
         return RPCMSG_RC_ERROR;
     }
 
@@ -36,10 +46,8 @@ int handle_msi(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 
     switch (op) {
     case QEMU_OP_SET_IRQ:
-        err = msi_irq_set(msg->mr1, true);
+        err = msi_irq_set(msg->mr1, msg->mr2);
         break;
-    case QEMU_OP_CLR_IRQ:
-        err = msi_irq_set(msg->mr1, false);
     default:
         break;
     }

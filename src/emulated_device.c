@@ -37,8 +37,10 @@ static irq_line_t *emudev_irq_register(io_proxy_t *io_proxy,
     return irq_res_find(io_proxy, irq);
 }
 
-static int emudev_irq_set(io_proxy_t *io_proxy, uint32_t irq, bool level)
+static int emudev_irq_set(io_proxy_t *io_proxy, uint32_t irq, uint32_t op)
 {
+    int err = -1;
+
     if (!irq_is_emulated_device(irq)) {
         ZF_LOGE("Interrupt %u is not a valid emulated device interrupt", irq);
         return -1;
@@ -52,11 +54,26 @@ static int emudev_irq_set(io_proxy_t *io_proxy, uint32_t irq, bool level)
                                        irq);
     }
 
-    if (irq_line) {
-        return irq_line_change(irq_line, level);
+    if (!irq_line) {
+        return -1;
     }
 
-    return -1;
+    switch (op) {
+    case RPC_IRQ_SET:
+        err = irq_line_change(irq_line, true);
+        break;
+    case RPC_IRQ_CLR:
+        err = irq_line_change(irq_line, false);
+        break;
+    case RPC_IRQ_PULSE:
+        err = irq_line_pulse(irq_line);
+        break;
+    default:
+        ZF_LOGE("Unknown irq op %u", op);
+        break;
+    }
+
+    return err;
 }
 
 static int emudev_mmio_config(io_proxy_t *io_proxy,
@@ -87,10 +104,7 @@ int handle_emudev(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
         err = emudev_mmio_config(io_proxy, msg->mr1, msg->mr2, msg->mr3);
         break;
     case QEMU_OP_SET_IRQ:
-        err = emudev_irq_set(io_proxy, msg->mr1, true);
-        break;
-    case QEMU_OP_CLR_IRQ:
-        err = emudev_irq_set(io_proxy, msg->mr1, false);
+        err = emudev_irq_set(io_proxy, msg->mr1, msg->mr2);
         break;
     default:
         return RPCMSG_RC_NONE;

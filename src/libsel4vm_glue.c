@@ -232,6 +232,32 @@ static int pcidev_intx_set(io_proxy_t *io_proxy, uint32_t backend_devfn,
                                   PCI_SLOT(pcidev->devfn), level);
 }
 
+static int handle_pci_intx(io_proxy_t *io_proxy, uint32_t backend_devfn, uint32_t irq_op)
+{
+    int err = -1;
+
+    switch (irq_op) {
+    case RPC_IRQ_SET:
+        err = pcidev_intx_set(io_proxy, backend_devfn, true);
+        break;
+    case RPC_IRQ_CLR:
+        err = pcidev_intx_set(io_proxy, backend_devfn, false);
+        break;
+    case RPC_IRQ_PULSE:
+        err = pcidev_intx_set(io_proxy, backend_devfn, true);
+        if (err) {
+            return err;
+        }
+        err = pcidev_intx_set(io_proxy, backend_devfn, false);
+        break;
+    default:
+        ZF_LOGE("Unknown irq operation %u for backend %p", irq_op, io_proxy);
+        break;
+    }
+
+    return err;
+}
+
 static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
 {
     int err;
@@ -241,13 +267,7 @@ static int handle_pci(io_proxy_t *io_proxy, unsigned int op, rpcmsg_t *msg)
         if (!irq_is_pci(msg->mr1))
             return RPCMSG_RC_NONE;
 
-        err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), true);
-        break;
-    case QEMU_OP_CLR_IRQ:
-        if (!irq_is_pci(msg->mr1))
-            return RPCMSG_RC_NONE;
-
-        err = pcidev_intx_set(io_proxy, PCI_DEVFN(msg->mr1, 0), false);
+        err = handle_pci_intx(io_proxy, PCI_DEVFN(msg->mr1, 0), msg->mr2);
         break;
     case QEMU_OP_REGISTER_PCI_DEV:
         err = pcidev_register(pci, io_proxy, PCI_DEVFN(msg->mr1, 0));
