@@ -50,17 +50,21 @@ int vm/*? dev.id ?*/_io_proxy_run(io_proxy_t *io_proxy)
     return 0;
 }
 
-static fdt_reserved_memory_t fdt_swiotlb_vm/*? dev.id ?*/ = {
-    .rm = {
-        .base = /*? dev.data_base ?*/,
-        .size = /*? dev.data_size ?*/,
+static fdt_dataport_t fdt_swiotlb_vm/*? dev.id ?*/ = {
+    .node = {
+        .name = "swiotlb",
+        .compatible = "restricted-dma-pool",
+        .generate = fdt_node_generate_swiotlb,
     },
-    .name = "swiotlb_vm/*? dev.id ?*/",
-    .compatible = "restricted-dma-pool",
+    .gpa = /*? dev.data_base ?*/,
+    .size = /*? dev.data_size ?*/,
 };
 
+DEFINE_FDT_NODE(fdt_swiotlb_vm/*? dev.id ?*/, &fdt_swiotlb_vm/*? dev.id ?*/.node)
+
 io_proxy_t vm/*? dev.id ?*/_io_proxy = {
-    .data_plane = &fdt_swiotlb_vm/*? dev.id ?*/.rm,
+    .data_base = /*? dev.data_base ?*/,
+    .data_size = /*? dev.data_size ?*/,
     .ctrl_base = /*? dev.ctrl_base ?*/,
     .ctrl_size = /*? dev.ctrl_size ?*/,
     .run = vm/*? dev.id ?*/_io_proxy_run,

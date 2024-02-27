@@ -6,6 +6,8 @@
 
 #define ZF_LOG_LEVEL ZF_LOG_INFO
 
+#include <stdbool.h>
+
 #include <libfdt.h>
 
 #include <tii/fdt.h>
@@ -21,6 +23,11 @@
 
 /* TODO: refactor fdt_generate_memory_node out of CAmkES VM */
 int fdt_generate_memory_node(void *fdt, uintptr_t base, size_t size);
+
+#define MAX_FDT_NODES 32
+
+static USED SECTION("_fdt_node") fdt_node_t *fdt_nodes[MAX_FDT_NODES];
+static int num_fdt_nodes;
 
 static int fdt_assign_phandle(void *fdt, int offset)
 {
@@ -165,32 +172,6 @@ int fdt_generate_pci_node(void *fdt, const char *prefix, uint32_t devfn)
     return this;
 }
 
-int fdt_generate_reserved_memory_nodes(void *fdt)
-{
-    guest_reserved_memory_t **start = __start__guest_reserved_memory;
-    guest_reserved_memory_t **stop = __stop__guest_reserved_memory;
-
-    for (guest_reserved_memory_t **ptr = start; ptr < stop; ptr++) {
-        guest_reserved_memory_t *rm = (*ptr);
-        if (!rm) {
-            continue;
-        }
-
-        fdt_reserved_memory_t *fdt_rm = container_of(rm, fdt_reserved_memory_t,
-                                                     rm);
-
-        int offset = fdt_generate_reserved_node(fdt, fdt_rm->name,
-                                                fdt_rm->compatible, rm->base,
-                                                rm->size);
-        if (offset <= 0) {
-            ZF_LOGE("fdt_generate_reserved_node() failed (%d)", offset);
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
 static int fdt_reserved_memory_phandle(void *fdt, const char *name,
                                        uint32_t *phandle)
 {
@@ -222,20 +203,18 @@ static int fdt_reserved_memory_phandle(void *fdt, const char *name,
     return 0;
 }
 
-int fdt_assign_reserved_memory(void *fdt, int off, guest_reserved_memory_t *rm)
+int fdt_assign_reserved_memory(void *fdt, int off, const char *prefix,
+                               uintptr_t base)
 {
     int err;
 
-    if (!fdt || !rm) {
+    if (!fdt || !prefix) {
         ZF_LOGE("invalid arguments");
         return -1;
     }
 
-    fdt_reserved_memory_t *fdt_rm = container_of(rm, fdt_reserved_memory_t,
-                                                 rm);
-
     char name[64];
-    err = fdt_format_memory_name(name, sizeof(name), fdt_rm->name, rm->base);
+    err = fdt_format_memory_name(name, sizeof(name), prefix, base);
     if (!name) {
         ZF_LOGE("fdt_format_memory_name() failed (%d)", err);
         return -1;
@@ -258,4 +237,122 @@ int fdt_assign_reserved_memory(void *fdt, int off, guest_reserved_memory_t *rm)
     }
 
     return 0;
+}
+
+int fdt_node_add(fdt_node_t *node)
+{
+    if (num_fdt_nodes >= ARRAY_SIZE(fdt_nodes)) {
+        ZF_LOGE("too many dynamic device tree nodes");
+        return -1;
+    }
+
+    fdt_nodes[num_fdt_nodes++] = node;
+
+    return 0;
+}
+
+static int fdt_node_generate(fdt_node_t *node, void *fdt)
+{
+    if (!node || !node->generate || !fdt) {
+        return -1;
+    }
+
+    if (node->generated) {
+        return 0;
+    }
+
+    int rc = node->generate(node, fdt);
+    if (rc > 0) {
+        node->generated = true;
+    }
+
+    return rc;
+}
+
+int fdt_node_generate_dataport(fdt_node_t *node, void *fdt)
+{
+    fdt_dataport_t *dataport = container_of(node, fdt_dataport_t, node);
+
+    int offset = fdt_generate_reserved_node(fdt, node->name, node->compatible,
+                                            dataport->gpa, dataport->size);
+    if (offset <= 0) {
+        ZF_LOGE("fdt_generate_reserved_node() failed (%d)", offset);
+        return -1;
+    }
+
+    return 1;
+}
+
+int fdt_node_generate_swiotlb(fdt_node_t *node, void *fdt)
+{
+    fdt_dataport_t *dataport = container_of(node, fdt_dataport_t, node);
+
+    if (dataport->gpa == guest_ram_base && dataport->size == guest_ram_size) {
+        return 0;
+    }
+
+    return fdt_node_generate_dataport(node, fdt);
+}
+
+static int fdt_node_filter_compatible(fdt_node_t *node, void *cookie)
+{
+    const char *compatible = cookie;
+
+    if (!node || !compatible) {
+        ZF_LOGE("invalid arguments");
+        return -1;
+    }
+
+    if (!node->compatible || strcmp(node->compatible, compatible)) {
+        return 0;
+    }
+
+    return 1;
+}
+
+static int fdt_node_generate_filter(int (*filter_fn)(fdt_node_t *node, void *cookie),
+                                    void *cookie, void *fdt)
+{
+    fdt_node_t **start = __start__fdt_node;
+    fdt_node_t **stop = __stop__fdt_node;
+    int rc = 0;
+
+    for (fdt_node_t **ptr = start; !rc && ptr < stop; ptr++) {
+        fdt_node_t *node = (*ptr);
+
+        if (!node) {
+            continue;
+        }
+
+        if (filter_fn) {
+            rc = filter_fn(node, cookie);
+            if (rc == -1) {
+                return -1;
+            }
+        }
+
+        if (rc == 0) {
+            continue;
+        }
+
+        rc = fdt_node_generate(node, fdt);
+        if (rc < 0) {
+            ZF_LOGE("fdt_node_generate() failed (%d)", rc);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int fdt_node_generate_compatibles(void *fdt, const char *compatible)
+{
+    /* non-const cast safe because it is just passed through */
+    return fdt_node_generate_filter(fdt_node_filter_compatible,
+                                    (void *)compatible, fdt);
+}
+
+int fdt_node_generate_all(void *fdt)
+{
+    return fdt_node_generate_filter(NULL, NULL, fdt);
 }
