@@ -13,7 +13,7 @@
 #include <tii/vmm.h>
 #include <tii/libsel4vm/guest.h>
 
-static int pci_generate_config(void *fdt)
+static int fdt_generate_pci_config(void *fdt)
 {
     for (int i = 0; i < pci_dev_count; i++) {
         int this = fdt_generate_pci_node(fdt, "virtio", pci_devs[i]->devfn);
@@ -22,9 +22,8 @@ static int pci_generate_config(void *fdt)
             return -1;
         }
 
-        guest_reserved_memory_t *rm = pci_devs[i]->io_proxy->data_plane;
-
-        int err = fdt_assign_reserved_memory(fdt, this, rm);
+        int err = fdt_assign_reserved_memory(fdt, this, "swiotlb",
+                                             pci_devs[i]->io_proxy->data_base);
         if (err) {
             ZF_LOGE("fdt_assign_reserved_memory() failed (%d)", err);
             return -1;
@@ -32,16 +31,6 @@ static int pci_generate_config(void *fdt)
     }
 
     return 0;
-}
-
-int guest_register_io_proxy(io_proxy_t *io_proxy)
-{
-    if (io_proxy->data_plane->base == guest_ram_base &&
-        io_proxy->data_plane->size == guest_ram_size) {
-        return 0;
-    }
-
-    return guest_reserved_memory_add(io_proxy->data_plane);
 }
 
 int guest_configure(void *cookie)
@@ -60,15 +49,21 @@ int guest_configure(void *cookie)
         return 0;
     }
 
-    err = fdt_generate_reserved_memory_nodes(config->dtb);
+    err = fdt_node_generate_compatibles(config->dtb, "restricted-dma-pool");
     if (err) {
-        ZF_LOGE("fdt_generate_reserved_memory_nodes() failed (%d)", err);
+        ZF_LOGE("fdt_node_generate_compatibles() failed (%d)", err);
         return -1;
     }
 
-    err = pci_generate_config(config->dtb);
+    err = fdt_generate_pci_config(config->dtb);
     if (err) {
-        ZF_LOGE("pci_generate_config() failed (%d)", err);
+        ZF_LOGE("fdt_generate_pci_config() failed (%d)", err);
+        return -1;
+    }
+
+    err = fdt_node_generate_all(config->dtb);
+    if (err) {
+        ZF_LOGE("fdt_node_generate_all() failed (%d)", err);
         return -1;
     }
 

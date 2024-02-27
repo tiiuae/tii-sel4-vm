@@ -163,12 +163,6 @@ void io_proxy_init(io_proxy_t *io_proxy)
     io_proxy->rpc.rx_queue = driver_rx_queue(iobuf_addr);
     io_proxy->rpc.tx_queue = driver_tx_queue(iobuf_addr);
 
-    err = guest_register_io_proxy(io_proxy);
-    if (err) {
-        ZF_LOGF("guest_register_io_proxy() failed (%d)", err);
-        /* no return */
-    }
-
     if (sync_sem_new(io_proxy->vka, &io_proxy->backend_started, 0)) {
         ZF_LOGF("Unable to allocate semaphore");
     }
