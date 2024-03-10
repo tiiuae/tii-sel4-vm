@@ -39,7 +39,7 @@ typedef struct ioack {
 typedef struct io_proxy {
     sync_sem_t backend_started;
     int ok_to_run;
-    sel4_rpc_t rpc;
+    vso_rpc_t rpc;
     int (*run)(struct io_proxy *io_proxy);
     uintptr_t data_base;
     size_t data_size;

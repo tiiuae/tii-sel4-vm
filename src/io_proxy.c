@@ -43,8 +43,8 @@ int ioreq_start(io_proxy_t *io_proxy, unsigned int slot, ioack_fn_t ioack_read,
     ioack->callback = (direction == SEL4_IO_DIR_READ) ? ioack_read : ioack_write;
     ioack->cookie = cookie;
 
-    return device_req_mmio_start(&io_proxy->rpc, direction, addr_space, slot,
-                                 offset, size, val);
+    return driver_rpc_req_mmio_start(&io_proxy->rpc, direction, addr_space, slot,
+                                     offset, size, val);
 }
 
 static int ioreq_finish(io_proxy_t *io_proxy, unsigned int slot, seL4_Word data)
@@ -132,7 +132,7 @@ int ioreq_native(io_proxy_t *io_proxy, unsigned int addr_space,
     int err = ioreq_start(io_proxy, slot, ioack_native_read,
                           ioack_native_write, &ioreq_native_data, addr_space,
                           direction, addr, size, *value);
-    if (err) {
+    if (err < 0) {
         ZF_LOGE("ioreq_start() failed (%d)", err);
         return -1;
     }
@@ -160,8 +160,12 @@ void io_proxy_init(io_proxy_t *io_proxy)
 
     uintptr_t iobuf_addr = io_proxy->iobuf_get(io_proxy);
 
-    io_proxy->rpc.rx_queue = driver_rx_queue(iobuf_addr);
-    io_proxy->rpc.tx_queue = driver_tx_queue(iobuf_addr);
+    err = vso_driver_rpc_init(vso_rpc_driver, (void *) iobuf_addr, &io_proxy->rpc.driver_rpc);
+    if (err) {
+        ZF_LOGF("vso_driver_rpc_init() failed (%d)", err);
+        /* no return */
+    }
+    io_proxy->rpc.device_event = devevt_queue(iobuf_addr);
 
     if (sync_sem_new(io_proxy->vka, &io_proxy->backend_started, 0)) {
         ZF_LOGF("Unable to allocate semaphore");
