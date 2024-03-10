@@ -333,7 +333,30 @@ static int rpc_process(rpcmsg_t *msg, void *cookie)
 
 int rpc_run(io_proxy_t *io_proxy)
 {
-    return sel4_rpc_rx_process(&io_proxy->rpc, rpc_process, io_proxy);
+    rpcmsg_t *resp;
+    rpcmsg_t event;
+    uint16_t id;
+    int rc = 0;
+
+    /* process ioreqs first */
+    for_each_driver_rpc_resp(resp, id, &io_proxy->rpc) {
+        rc = rpc_process(resp, io_proxy);
+        if (rc) {
+            fprintf(stderr, "processing rpc failed (%d)\n", rc);
+            break;
+        }
+    }
+
+    /* process events */
+    for_each_device_event(event, &io_proxy->rpc) {
+        rc = rpc_process(&event, io_proxy);
+        if (rc) {
+            fprintf(stderr, "processing rpc failed (%d)\n", rc);
+            break;
+        }
+    }
+
+    return rc;
 }
 
 static int ioack_vcpu_read(seL4_Word data, void *cookie)
