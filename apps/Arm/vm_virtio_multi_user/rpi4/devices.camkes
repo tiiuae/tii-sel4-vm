@@ -160,7 +160,7 @@ assembly {
             "kernel_bootcmdline" :
                 "console=hvc0 "
                 "earlycon=pl011,mmio32,0x09000000 "
-                "root=/dev/vda2 "
+                "root=/dev/vda "
                 "rw "
                 "debug "
                 "loglevel=8 "
@@ -198,7 +198,7 @@ assembly {
             "kernel_bootcmdline" :
                 "console=hvc0 "
                 "earlycon=pl011,mmio32,0x09000000 "
-                "root=/dev/vda2 "
+                "root=/dev/vda "
                 "rw "
                 "debug "
                 "loglevel=8 "
