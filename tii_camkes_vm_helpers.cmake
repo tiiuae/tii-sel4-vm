@@ -10,7 +10,7 @@ include(${CAMKES_ARM_VM_HELPERS_PATH})
 # invocation/cmake cache editor
 set(VM_IMAGES_DIR "${TII_CAMKES_VM_DIR}/../../vm-images/build/tmp/deploy/images" CACHE STRING "")
 set(VM_IMAGE_LINUX "${VM_IMAGES_DIR}/${VM_IMAGE_MACHINE}/Image" CACHE STRING "VM kernel image")
-set(VM_IMAGE_INITRD "${VM_IMAGES_DIR}/${VM_IMAGE_MACHINE}/vm-image-boot-${VM_IMAGE_MACHINE}.cpio.gz" CACHE STRING "VM initramfs")
+set(VM_IMAGE_INITRD "${VM_IMAGES_DIR}/${VM_IMAGE_MACHINE}/vm-image-boot-${VM_IMAGE_MACHINE}.rootfs.cpio.gz" CACHE STRING "VM initramfs")
 
 CAmkESAddImportPath(${KernelARMPlatform})
 
