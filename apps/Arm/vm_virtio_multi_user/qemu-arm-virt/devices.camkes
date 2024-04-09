@@ -75,7 +75,8 @@ assembly {
                 "nosmp "
                 "pci=nomsi,realloc=off "
                 "initcall_blacklist=clk_disable_unused "
-                "root=/dev/vda ",
+                "root=/dev/vda "
+                "swiotlb=512 ",
             "kernel_stdout" : "/pl011@9000000",
             "generate_dtb" : true,
             "provide_dtb" : false,
@@ -123,7 +124,8 @@ assembly {
                 "debug "
                 "loglevel=8 "
                 "pci=nomsi,realloc=off "
-                "initcall_blacklist=clk_disable_unused ",
+                "initcall_blacklist=clk_disable_unused "
+                "swiotlb=512 ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
             "generate_dtb" : true,
@@ -163,7 +165,8 @@ assembly {
                 "debug "
                 "loglevel=8 "
                 "pci=nomsi,realloc=off "
-                "initcall_blacklist=clk_disable_unused ",
+                "initcall_blacklist=clk_disable_unused "
+                "swiotlb=512 ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
             "generate_dtb" : true,

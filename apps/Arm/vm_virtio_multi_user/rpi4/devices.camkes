@@ -76,7 +76,8 @@ assembly {
                 "pci=nomsi "
                 "nosmp "
                 "cma=64M "
-                "initcall_blacklist=clk_disable_unused ",
+                "initcall_blacklist=clk_disable_unused "
+                "swiotlb=512 ",
             "kernel_stdout" : "/soc/serial@7e215040",
             "generate_dtb" : true,
             "provide_dtb" : false,
@@ -165,7 +166,8 @@ assembly {
                 "debug "
                 "loglevel=8 "
                 "pci=nomsi "
-                "initcall_blacklist=clk_disable_unused ",
+                "initcall_blacklist=clk_disable_unused "
+                "swiotlb=512 ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
             "generate_dtb" : true,
@@ -203,7 +205,8 @@ assembly {
                 "debug "
                 "loglevel=8 "
                 "pci=nomsi "
-                "initcall_blacklist=clk_disable_unused ",
+                "initcall_blacklist=clk_disable_unused "
+                "swiotlb=512 ",
             "kernel_stdout" : "hvc0",
             "provide_initrd" : false,
             "generate_dtb" : true,
